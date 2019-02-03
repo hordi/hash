@@ -42,7 +42,7 @@ public:
     template<typename T>
     struct hash_ : public std::hash<T> {
         ALWAYS_INLINE size_t operator()(const T& val) const noexcept {
-            hash_base::hash(val);
+            return hash_base::hash(val);
         }
     };
 
