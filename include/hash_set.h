@@ -109,7 +109,7 @@ protected:
 #else
     __attribute__((noinline, noreturn))
 #endif
-   static void throw_length_error() {
+    static void throw_length_error() {
         throw std::length_error("size exceeded");
     }
 
