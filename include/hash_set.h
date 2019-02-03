@@ -172,7 +172,7 @@ protected:
             friend base;
             iterator(typename base::storage_type* p, typename base::size_type cnt) : const_iterator(p, cnt) {}
         };
-        };
+    };
 
     constexpr static ALWAYS_INLINE uint32_t make_hash32(size_t h) noexcept {
         return static_cast<uint32_t>(h | USED_MARK); //2 bits uses as flag
