@@ -1041,7 +1041,7 @@ private:
                     tmp.insert_unique(std::move(r));
                     r.~value_type();
 
-                    //next 2 lines need to be to cover any exception that occurs during next tmp.insert_unique(std::move(r));
+                    //next 2 lines needs to be to cover any exception that occurs during next tmp.insert_unique(std::move(r));
                     p->first = DELETED_MARK;
                     _erased++;
 
