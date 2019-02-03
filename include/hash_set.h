@@ -328,6 +328,8 @@ struct hash_base::hash_<std::string> {
     }
 };
 
+//----------------------------------------- hash_set -----------------------------------------
+
 template<class Key, class Hash = hash_base::hash_<Key>, class Pred = std::equal_to<Key>>
 class hash_set : public hash_base
 {
@@ -663,6 +665,404 @@ private:
     }
 
     //space must be allocated before
+    ALWAYS_INLINE void ctor_assign(const this_type& r)
+    {
+        auto cnt = r._size;
+        for (auto i = r.begin(); cnt--; ++i)
+            insert_unique(*i);
+    }
+
+    hasher _hf;
+    key_equal _eql;
+};
+
+//----------------------------------------- hash_map -----------------------------------------
+
+template<class Key, class T, class Hash = hash_base::hash_<Key>, class Pred = std::equal_to<Key>>
+class hash_map : public hash_base
+{
+public:
+    typedef hash_map<Key, T, Hash, Pred>            this_type;
+    typedef Key                                     key_type;
+    typedef T                                       mapped_type;
+    typedef Hash                                    hasher;
+    typedef Pred                                    key_equal;
+    typedef std::pair<const key_type, mapped_type>  value_type;
+    typedef value_type&                             reference;
+    typedef const value_type&                       const_reference;
+
+private:
+    friend iterator_base<this_type>;
+    typedef std::pair<uint32_t, value_type> storage_type;
+
+public:
+    typedef typename iterator_base<this_type>::iterator iterator;
+    typedef typename iterator_base<this_type>::const_iterator const_iterator;
+
+    hash_map() {
+        ctor_empty();
+    }
+
+    hash_map(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
+        _hf(hf),
+        _eql(eql)
+    {
+        ctor_pow2(roundup(hint_size * 2), sizeof(storage_type));
+    }
+
+    hash_map(const this_type& r) :
+        _hf(r._hf),
+        _eql(r._eql)
+    {
+        if (r._size) {
+            ctor_pow2(r._capacity + 1, sizeof(storage_type));
+            ctor_assign(r);
+        }
+        else
+            ctor_empty();
+    }
+
+    hash_map(this_type&& r) noexcept :
+        _hf(std::move(r._hf)),
+        _eql(std::move(r._eql))
+    {
+        if (r._size) {
+            *(hash_base*)this = r;
+            r.ctor_empty();
+        }
+        else
+            ctor_empty();
+    }
+
+    ~hash_map()
+    {
+        clear();
+    }
+
+    iterator begin() noexcept
+    {
+        auto pm = reinterpret_cast<storage_type*>(_elements);
+
+        if (auto cnt = _size) {
+            --cnt;
+            for (;; ++pm) {
+                if (pm->first >= ACTIVE_MARK)
+                    return iterator(pm, cnt);
+            }
+        }
+        return iterator();
+    }
+
+    const_iterator begin() const noexcept {
+        return cbegin();
+    }
+
+    const_iterator cbegin() const noexcept {
+        return const_cast<this_type*>(this)->begin();
+    }
+
+    iterator end() noexcept {
+        return iterator();
+    }
+
+    const_iterator end() const noexcept {
+        return cend();
+    }
+
+    const_iterator cend() const noexcept {
+        return const_iterator();
+    }
+
+    __forceinline void reserve(size_type hint) {
+        hint *= 2;
+        if (hint > _capacity)
+            resize_pow2(roundup(hint));
+    }
+
+    void clear() noexcept {
+        hash_base::clear<storage_type, value_type>();
+    }
+
+    void swap(this_type& r) noexcept
+    {
+        hash_base::swap(r);
+        std::swap(_hf, r._hf);
+        std::swap(_eql, r._eql);
+    }
+
+    /*! Can invalidate iterators. */
+    ALWAYS_INLINE std::pair<iterator, bool> insert(const value_type& val) {
+        return insert_(val);
+    }
+
+    /*! Can invalidate iterators. */
+    template <class P>
+    ALWAYS_INLINE std::pair<iterator, bool> insert(P&& val) {
+        return insert_(std::move(val));
+    }
+
+    iterator find(const key_type& k) noexcept {
+        const_iterator it = static_cast<const this_type*>(this)->find(k);
+        return iterator(it._ptr, it._cnt);
+    }
+
+    const_iterator find(const key_type& k) const noexcept
+    {
+        size_t i = _hf(k);
+        const uint32_t hash32 = make_hash32(i);
+
+        for (;; ++i)
+        {
+            i &= _capacity;
+            auto& r = reinterpret_cast<storage_type*>(_elements)[i];
+            uint32_t h = r.first;
+            if (h == hash32)
+            {
+                if (_eql(r.second.first, k)) //identical found
+                    return const_iterator(&r, 0);
+            }
+            else if (!h)
+                break;
+        }
+        return const_iterator();
+    }
+
+    size_type count(const key_type& k) const noexcept
+    {
+        size_t i = _hf(k);
+        const uint32_t hash32 = make_hash32(i);
+
+        for (;; ++i)
+        {
+            i &= _capacity;
+            auto& r = reinterpret_cast<storage_type*>(_elements)[i];
+            uint32_t h = r.first;
+            if (h == hash32)
+            {
+                if (_eql(r.second.first, k)) //identical found
+                    return 1;
+            }
+            else if (!h)
+                break;
+        }
+        return 0;
+    }
+
+    /*! Can invalidate iterators.
+    * \params it - Iterator pointing to a single element to be removed
+    * \return return an iterator pointing to the position immediately following of the element erased
+    */
+    iterator erase(const_iterator it) noexcept
+    {
+        if (auto ptr = it._ptr) //valid
+        {
+            auto cnt = it._cnt;
+            deleteElement<storage_type, value_type>(it._ptr);
+
+            if (cnt--) {
+                for (;;) {
+                    if ((++ptr)->first >= ACTIVE_MARK)
+                        return iterator(ptr, cnt);
+                }
+            }
+        }
+        return iterator();
+    }
+
+    /*! Can invalidate iterators.
+    * \params k - Key of the element to be erased
+    * \return 1 - if element erased and zero otherwise
+    */
+    size_type erase(const key_type& k) noexcept
+    {
+        iterator i = find(k);
+        if (i._ptr) {
+            deleteElement<storage_type, value_type>(i._ptr);
+            return 1;
+        }
+        return 0;
+    }
+
+    hash_map& operator=(const hash_map& r)
+    {
+        if (this != &r)
+        {
+            clear();
+            if (r._size)
+            {
+                ctor_pow2(r._capacity + 1, sizeof(storage_type));
+                ctor_assign(r);
+            }
+        }
+        return *this;
+    }
+
+    hash_map& operator=(hash_map&& r) noexcept {
+        swap(r);
+        return *this;
+    }
+
+    ALWAYS_INLINE mapped_type& operator[](const key_type& k) {
+        return find_insert(k);
+    }
+
+    ALWAYS_INLINE mapped_type& operator[](key_type&& k) {
+        return find_insert(std::move(k));
+    }
+
+private:
+    hash_map(const hasher& hf, const key_equal& eql, size_type pow2) :
+        _hf(hf),
+        _eql(eql)
+    {
+        ctor_pow2(pow2, sizeof(storage_type));
+    }
+
+    template<typename V>
+    mapped_type& find_insert(V&& k)
+    {
+        size_t i = _hf(k);
+        const uint32_t hash32 = make_hash32(i);
+
+        auto unused_cnt = _capacity - _size;
+        if (unused_cnt <= _size)
+            resize_next();
+        else if (_erased > (unused_cnt / 2))
+            resize_pow2(_capacity + 1);
+
+        storage_type* empty_spot = nullptr;
+        uint32_t deleted_mark = DELETED_MARK;
+
+        for (;; ++i)
+        {
+            i &= _capacity;
+            storage_type* r = reinterpret_cast<storage_type*>(_elements) + i;
+            uint32_t h = r->first;
+            if (!h)
+            {
+                if (empty_spot) r = empty_spot;
+
+                new (&r->second) value_type(std::forward<V>(k), mapped_type());
+                r->first = hash32;
+                _size++;
+                return r->second.second;
+            }
+            if (h == hash32)
+            {
+                if (_eql(r->second.first, k)) //identical found
+                    return r->second.second;
+            }
+            else if (h == deleted_mark)
+            {
+                empty_spot = r;
+                deleted_mark = 0; //optimization to prevent additional empty_spot == null_ptr comparison
+                _erased--;
+            }
+        }
+    }
+
+    template<typename V>
+    std::pair<iterator, bool> insert_(V&& val)
+    {
+        size_t i = _hf(val.first);
+        const uint32_t hash32 = make_hash32(i);
+
+        auto unused_cnt = _capacity - _size;
+        if (unused_cnt <= _size)
+            resize_next();
+        else if (_erased > (unused_cnt / 2))
+            resize_pow2(_capacity + 1);
+
+        std::pair<iterator, bool> ret;
+        storage_type* empty_spot = nullptr;
+        uint32_t deleted_mark = DELETED_MARK;
+
+        for (;; ++i)
+        {
+            i &= _capacity;
+            storage_type* r = reinterpret_cast<storage_type*>(_elements) + i;
+            uint32_t h = r->first;
+            if (!h)
+            {
+                if (empty_spot) r = empty_spot;
+
+                new (&r->second) value_type(std::forward<V>(val));
+                r->first = hash32;
+                ret.first._ptr = r;
+                ret.second = true;
+                _size++;
+                return ret;
+            }
+            if (h == hash32)
+            {
+                if (_eql(r->second.first, val.first)) //identical found
+                {
+                    ret.first._ptr = r;
+                    return ret;
+                }
+            }
+            else if (h == deleted_mark)
+            {
+                empty_spot = r;
+                deleted_mark = 0; //optimization to prevent additional first_found == null_ptr comparison
+                _erased--;
+            }
+        }
+    }
+
+    template<typename V>
+    ALWAYS_INLINE void insert_unique(V&& val)
+    {
+        size_t i = _hf(val.first);
+        uint32_t hash32 = make_hash32(i);
+
+        for (;; ++i)
+        {
+            i &= _capacity;
+            auto& r = reinterpret_cast<storage_type*>(_elements)[i];
+            if (!r.first) {
+                new (&r.second) value_type(std::forward<V>(val));
+                r.first = hash32;
+                _size++;
+                return;
+            }
+        }
+    }
+
+    void resize_pow2(size_type pow2)
+    {
+        this_type tmp(_hf, _eql, pow2);
+        if (_size) //rehash
+        {
+            for (storage_type* p = reinterpret_cast<storage_type*>(_elements);; ++p)
+            {
+                if (p->first >= ACTIVE_MARK) {
+                    value_type& r = p->second;
+                    tmp.insert_unique(std::move(r));
+                    r.~value_type();
+
+                    //next 2 lines need to be to cover any exception that occurs during next tmp.insert_unique(std::move(r));
+                    p->first = DELETED_MARK;
+                    _erased++;
+
+                    if (!--_size)
+                        break;
+                }
+            }
+        }
+        swap(tmp);
+    }
+
+    ALWAYS_INLINE void resize_next()
+    {
+        size_type sz = (_capacity + 1) * 2;
+        if (sz > _capacity)
+            resize_pow2(sz);
+        else
+            throw_length_error();
+    }
+
+    //enough space must be allocated before
     ALWAYS_INLINE void ctor_assign(const this_type& r)
     {
         auto cnt = r._size;
