@@ -100,7 +100,7 @@ protected:
 #else
     __attribute__((noinline, noreturn))
 #endif
-        static void throw_bad_alloc() {
+    static void throw_bad_alloc() {
         throw std::bad_alloc();
     }
 
@@ -109,7 +109,7 @@ protected:
 #else
     __attribute__((noinline, noreturn))
 #endif
-        static void throw_length_error() {
+   static void throw_length_error() {
         throw std::length_error("size exceeded");
     }
 
@@ -773,7 +773,7 @@ public:
         return const_iterator();
     }
 
-    __forceinline void reserve(size_type hint) {
+    ALWAYS_INLINE void reserve(size_type hint) {
         hint *= 2;
         if (hint > _capacity)
             resize_pow2(roundup(hint));
