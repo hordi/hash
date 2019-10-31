@@ -1,5 +1,5 @@
-#ifndef hash_set_h_
-#define hash_set_h_
+#ifndef hordi_hash_set_h_
+#define hordi_hash_set_h_
 
 #include <functional>
 #include <stdexcept>
@@ -12,6 +12,8 @@
 #  define ALWAYS_INLINE __attribute__((always_inline))
 #  include <x86intrin.h>
 #endif
+
+namespace hordi {
 
 class hash_base
 {
@@ -1074,4 +1076,6 @@ private:
     key_equal _eql;
 };
 
-#endif //hash_set_h_
+} //namespace hordi
+
+#endif //hordi_hash_set_h_
