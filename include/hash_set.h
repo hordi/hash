@@ -1,5 +1,5 @@
-#ifndef hordi_hash_set_h_
-#define hordi_hash_set_h_
+#ifndef hash_set_h_
+#define hash_set_h_
 
 #include <functional>
 #include <stdexcept>
@@ -450,13 +450,15 @@ public:
     }
 
     /*! Can invalidate iterators. */
-    ALWAYS_INLINE std::pair<iterator, bool> insert(key_type&& val) {
-        return find_insert(std::move(val));
+    template<class P>
+    ALWAYS_INLINE std::pair<iterator, bool> insert(P&& val) {
+        return find_insert(std::forward<P>(val));
     }
 
     /*! Can invalidate iterators. */
-    ALWAYS_INLINE std::pair<iterator, bool> emplace(key_type&& val) {
-        return find_insert(std::move(val));
+    template<class K>
+    ALWAYS_INLINE std::pair<iterator, bool> emplace(K&& val) {
+        return find_insert(std::forward<K>(val));
     }
 
     iterator find(const key_type& k) noexcept {
@@ -803,8 +805,9 @@ public:
     }
 
     /*! Can invalidate iterators. */
-    ALWAYS_INLINE std::pair<iterator, bool> insert(value_type&& val) {
-        return insert_(std::move(val));
+    template <class P>
+    ALWAYS_INLINE std::pair<iterator, bool> insert(P&& val) {
+        return insert_(std::forward<P>(val));
     }
 
     /*! Can invalidate iterators. */
@@ -814,9 +817,9 @@ public:
     }
 
     /*! Can invalidate iterators. */
-    template<class... Args>
-    ALWAYS_INLINE std::pair<iterator, bool> emplace(Key&& key, Args&&... args) {
-        return find_emplace(std::move(key), std::forward<Args>(args)...);
+    template<class K, class... Args>
+    ALWAYS_INLINE std::pair<iterator, bool> emplace(K&& key, Args&&... args) {
+        return find_emplace(std::forward<K>(key), std::forward<Args>(args)...);
     }
 
     iterator find(const key_type& k) noexcept {
@@ -1143,4 +1146,4 @@ private:
 
 } //namespace hordi
 
-#endif //hordi_hash_set_h_
+#endif //hash_set_h_
