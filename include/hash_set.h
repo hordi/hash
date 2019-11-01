@@ -1,5 +1,5 @@
-#ifndef hash_set_h_
-#define hash_set_h_
+#ifndef hordi_hash_set_h_
+#define hordi_hash_set_h_
 
 #include <functional>
 #include <stdexcept>
@@ -1146,4 +1146,4 @@ private:
 
 } //namespace hordi
 
-#endif //hash_set_h_
+#endif //hordi_hash_set_h_
