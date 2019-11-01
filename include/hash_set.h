@@ -454,6 +454,11 @@ public:
         return find_insert(std::move(val));
     }
 
+    /*! Can invalidate iterators. */
+    ALWAYS_INLINE std::pair<iterator, bool> emplace(key_type&& val) {
+        return find_insert(std::move(val));
+    }
+
     iterator find(const key_type& k) noexcept {
         const_iterator it = static_cast<const this_type*>(this)->find(k);
         return iterator(it._ptr, it._cnt);
@@ -798,9 +803,20 @@ public:
     }
 
     /*! Can invalidate iterators. */
-    template <class P>
-    ALWAYS_INLINE std::pair<iterator, bool> insert(P&& val) {
+    ALWAYS_INLINE std::pair<iterator, bool> insert(value_type&& val) {
         return insert_(std::move(val));
+    }
+
+    /*! Can invalidate iterators. */
+    template<class... Args>
+    ALWAYS_INLINE std::pair<iterator, bool> emplace(const Key& key, Args&&... args) {
+        return find_emplace(key, std::forward<Args>(args)...);
+    }
+
+    /*! Can invalidate iterators. */
+    template<class... Args>
+    ALWAYS_INLINE std::pair<iterator, bool> emplace(Key&& key, Args&&... args) {
+        return find_emplace(std::move(key), std::forward<Args>(args)...);
     }
 
     iterator find(const key_type& k) noexcept {
@@ -918,6 +934,55 @@ private:
         _eql(eql)
     {
         ctor_pow2(pow2, sizeof(storage_type));
+    }
+
+    template<typename K, typename... Args>
+    std::pair<iterator, bool> find_emplace(K&& k, Args&&... args)
+    {
+        size_t i = _hf(k);
+        const uint32_t hash32 = make_hash32(i);
+
+        auto unused_cnt = _capacity - _size;
+        if (unused_cnt <= _size)
+            resize_next();
+        else if (_erased > (unused_cnt / 2))
+            resize_pow2(_capacity + 1);
+
+        std::pair<iterator, bool> ret;
+        storage_type* empty_spot = nullptr;
+        uint32_t deleted_mark = DELETED_MARK;
+
+        for (;; ++i)
+        {
+            i &= _capacity;
+            storage_type* r = reinterpret_cast<storage_type*>(_elements) + i;
+            uint32_t h = r->first;
+            if (!h)
+            {
+                if (empty_spot) r = empty_spot;
+
+                new (&r->second) value_type(std::piecewise_construct, std::forward_as_tuple(std::forward<K>(k)), std::forward_as_tuple(std::forward<Args>(args)...));
+                r->first = hash32;
+                ret.first._ptr = r;
+                ret.second = true;
+                _size++;
+                return ret;
+            }
+            if (h == hash32)
+            {
+                if (_eql(r->second.first, k)) //identical found
+                {
+                    ret.first._ptr = r;
+                    return ret;
+                }
+            }
+            else if (h == deleted_mark)
+            {
+                empty_spot = r;
+                deleted_mark = 0; //optimization to prevent additional first_found == null_ptr comparison
+                _erased--;
+            }
+        }
     }
 
     template<typename V>
