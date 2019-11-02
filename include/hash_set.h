@@ -270,7 +270,7 @@ protected:
 };
 
 template<>
-constexpr ALWAYS_INLINE uint32_t hash_base::hash_1<1>(const void* ptr, uint32_t offset) noexcept {
+ALWAYS_INLINE uint32_t hash_base::hash_1<1>(const void* ptr, uint32_t offset) noexcept {
     uint32_t hash32 = (offset ^ (*(uint8_t*)ptr)) * 1607;
     return hash32 ^ (hash32 >> 16);
 }
@@ -282,20 +282,20 @@ ALWAYS_INLINE uint32_t hash_base::hash_1<2>(const void* ptr, uint32_t offset) no
 }
 
 template<>
-constexpr ALWAYS_INLINE uint32_t hash_base::hash_1<4>(const void* ptr, uint32_t offset) noexcept {
+ALWAYS_INLINE uint32_t hash_base::hash_1<4>(const void* ptr, uint32_t offset) noexcept {
     uint32_t hash32 = (offset ^ (*(uint32_t*)ptr)) * 1607;
     return hash32 ^ (hash32 >> 16);
 }
 
 template<>
-constexpr ALWAYS_INLINE uint32_t hash_base::hash_1<8>(const void* ptr, uint32_t offset) noexcept {
+ALWAYS_INLINE uint32_t hash_base::hash_1<8>(const void* ptr, uint32_t offset) noexcept {
     uint32_t* key = (uint32_t*)ptr;
     uint32_t hash32 = (((offset ^ key[0]) * 1607) ^ key[1]) * 1607;
     return hash32 ^ (hash32 >> 16);
 }
 
 template<>
-constexpr ALWAYS_INLINE uint32_t hash_base::hash_1<12>(const void* ptr, uint32_t offset) noexcept
+ALWAYS_INLINE uint32_t hash_base::hash_1<12>(const void* ptr, uint32_t offset) noexcept
 {
     const uint32_t* key = reinterpret_cast<const uint32_t*>(ptr);
 
@@ -309,7 +309,7 @@ constexpr ALWAYS_INLINE uint32_t hash_base::hash_1<12>(const void* ptr, uint32_t
 }
 
 template<>
-constexpr ALWAYS_INLINE uint32_t hash_base::hash_1<16>(const void* ptr, uint32_t offset) noexcept
+ALWAYS_INLINE uint32_t hash_base::hash_1<16>(const void* ptr, uint32_t offset) noexcept
 {
     const uint32_t* key = reinterpret_cast<const uint32_t*>(ptr);
 
