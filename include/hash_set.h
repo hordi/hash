@@ -702,7 +702,7 @@ private:
             i &= _capacity;
             auto& r = reinterpret_cast<storage_type*>(_elements)[i];
             if (!r.mark) {
-                if (std::is_trivial<key_type>::value) {
+                if constexpr (std::is_trivial<key_type>::value) {
                     memcpy(&r, &st, sizeof(st));
                 } else {
                     new (&r) storage_type(std::forward<V>(st));
@@ -1137,7 +1137,7 @@ private:
             i &= _capacity;
             auto& r = reinterpret_cast<storage_type*>(_elements)[i];
             if (!r.mark) {
-                if (std::is_trivial<key_type>::value && std::is_trivial<mapped_type>::value) {
+                if constexpr (std::is_trivial<key_type>::value && std::is_trivial<mapped_type>::value) {
                     memcpy(&r, &st, sizeof(st));
                 } else {
                     new (&r) storage_type(std::forward<V>(st));
