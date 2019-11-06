@@ -48,7 +48,7 @@ public:
         }
     };
 
-    constexpr static ALWAYS_INLINE uint32_t fnv_1a(const char* key, size_t len, uint32_t hash32 = OFFSET_BASIS) noexcept
+    static ALWAYS_INLINE uint32_t fnv_1a(const char* key, size_t len, uint32_t hash32 = OFFSET_BASIS) noexcept
     {
         const uint32_t PRIME = 1607;
 
@@ -90,7 +90,7 @@ protected:
     };
 #pragma pack(pop)
 
-    constexpr ALWAYS_INLINE static uint32_t make_mark(size_t h) noexcept {
+    ALWAYS_INLINE static uint32_t make_mark(size_t h) noexcept {
         return static_cast<uint32_t>(h | USED_MARK);
     }
 
@@ -180,7 +180,7 @@ protected:
 #else
     __attribute__((noinline, noreturn))
 #endif
-        static void throw_bad_alloc() {
+    static void throw_bad_alloc() {
         throw std::bad_alloc();
     }
 
@@ -189,7 +189,7 @@ protected:
 #else
     __attribute__((noinline, noreturn))
 #endif
-        static void throw_length_error() {
+    static void throw_length_error() {
         throw std::length_error("size exceeded");
     }
 
@@ -348,7 +348,7 @@ protected:
 };
 
 template<>
-constexpr ALWAYS_INLINE uint32_t hash_base::hash_1<1>(const void* ptr, uint32_t offset) noexcept {
+ALWAYS_INLINE uint32_t hash_base::hash_1<1>(const void* ptr, uint32_t offset) noexcept {
     uint32_t hash32 = (offset ^ (*(uint8_t*)ptr)) * 1607;
     return hash32 ^ (hash32 >> 16);
 }
@@ -360,20 +360,20 @@ ALWAYS_INLINE uint32_t hash_base::hash_1<2>(const void* ptr, uint32_t offset) no
 }
 
 template<>
-constexpr ALWAYS_INLINE uint32_t hash_base::hash_1<4>(const void* ptr, uint32_t offset) noexcept {
+ALWAYS_INLINE uint32_t hash_base::hash_1<4>(const void* ptr, uint32_t offset) noexcept {
     uint32_t hash32 = (offset ^ (*(uint32_t*)ptr)) * 1607;
     return hash32 ^ (hash32 >> 16);
 }
 
 template<>
-constexpr ALWAYS_INLINE uint32_t hash_base::hash_1<8>(const void* ptr, uint32_t offset) noexcept {
+ALWAYS_INLINE uint32_t hash_base::hash_1<8>(const void* ptr, uint32_t offset) noexcept {
     uint32_t* key = (uint32_t*)ptr;
     uint32_t hash32 = (((offset ^ key[0]) * 1607) ^ key[1]) * 1607;
     return hash32 ^ (hash32 >> 16);
 }
 
 template<>
-constexpr ALWAYS_INLINE uint32_t hash_base::hash_1<12>(const void* ptr, uint32_t offset) noexcept
+ALWAYS_INLINE uint32_t hash_base::hash_1<12>(const void* ptr, uint32_t offset) noexcept
 {
     const uint32_t* key = reinterpret_cast<const uint32_t*>(ptr);
 
@@ -387,7 +387,7 @@ constexpr ALWAYS_INLINE uint32_t hash_base::hash_1<12>(const void* ptr, uint32_t
 }
 
 template<>
-constexpr ALWAYS_INLINE uint32_t hash_base::hash_1<16>(const void* ptr, uint32_t offset) noexcept
+ALWAYS_INLINE uint32_t hash_base::hash_1<16>(const void* ptr, uint32_t offset) noexcept
 {
     const uint32_t* key = reinterpret_cast<const uint32_t*>(ptr);
 
@@ -702,7 +702,7 @@ private:
             i &= _capacity;
             auto& r = reinterpret_cast<storage_type*>(_elements)[i];
             if (!r.mark) {
-                if constexpr (std::is_trivial<key_type>::value) {
+                if (std::is_trivial<key_type>::value) {
                     memcpy(&r, &st, sizeof(st));
                 } else {
                     new (&r) storage_type(std::forward<V>(st));
@@ -1137,7 +1137,7 @@ private:
             i &= _capacity;
             auto& r = reinterpret_cast<storage_type*>(_elements)[i];
             if (!r.mark) {
-                if constexpr (std::is_trivial<key_type>::value && std::is_trivial<mapped_type>::value) {
+                if (std::is_trivial<key_type>::value && std::is_trivial<mapped_type>::value) {
                     memcpy(&r, &st, sizeof(st));
                 } else {
                     new (&r) storage_type(std::forward<V>(st));
