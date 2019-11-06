@@ -375,6 +375,8 @@ ALWAYS_INLINE uint32_t hash_base::hash_1<4>(const void* ptr, uint32_t offset) no
 
 template<>
 ALWAYS_INLINE uint32_t hash_base::hash_1<8>(const void* ptr, uint32_t offset) noexcept {
+
+    //return static_cast<uint32_t>(__umulh(0xfa1371431ef43ae1ull, *(uint64_t*)ptr) * 0xfe9b65e7da1b3187ull);
     uint32_t* key = (uint32_t*)ptr;
     uint32_t hash32 = (((offset ^ key[0]) * 1607) ^ key[1]) * 1607;
     return hash32 ^ (hash32 >> 16);
@@ -521,7 +523,7 @@ public:
     }
 
     void clear() noexcept {
-        hash_base::clear<storage_type, key_type>(std::is_trivial<key_type>());
+        hash_base::clear<storage_type, key_type>(std::is_trivially_copyable<key_type>());
     }
 
     void swap(hash_set& r) noexcept
@@ -714,7 +716,7 @@ private:
 #ifdef __cpp_if_constexpr
                 constexpr
 #endif
-                (std::is_trivial<key_type>::value) {
+                (std::is_trivially_copyable<key_type>::value) {
                     memcpy(&r, &st, sizeof(st));
                 } else {
                     new (&r) storage_type(std::forward<V>(st));
@@ -727,7 +729,7 @@ private:
 
     ALWAYS_INLINE void resize_pow2(size_type pow2)
     {
-        hash_base::resize_pow2<this_type>(pow2, *this, std::is_trivial<key_type>());
+        hash_base::resize_pow2<this_type>(pow2, *this, std::is_trivially_copyable<key_type>());
     }
 
     ALWAYS_INLINE void resize_next()
@@ -856,7 +858,7 @@ public:
     }
 
     void clear() noexcept {
-        hash_base::clear<storage_type, value_type>(std::integral_constant<bool, std::is_trivial<key_type>::value && std::is_trivial<mapped_type>::value>());
+        hash_base::clear<storage_type, value_type>(std::integral_constant<bool, std::is_trivially_copyable<key_type>::value && std::is_trivially_copyable<mapped_type>::value>());
     }
 
     void swap(this_type& r) noexcept
@@ -1153,7 +1155,7 @@ private:
 #ifdef __cpp_if_constexpr
                 constexpr
 #endif
-                (std::is_trivial<key_type>::value && std::is_trivial<mapped_type>::value) {
+                (std::is_trivially_copyable<key_type>::value && std::is_trivially_copyable<mapped_type>::value) {
                     memcpy(&r, &st, sizeof(st));
                 } else {
                     new (&r) storage_type(std::forward<V>(st));
@@ -1166,7 +1168,7 @@ private:
 
     ALWAYS_INLINE void resize_pow2(size_type pow2)
     {
-        hash_base::resize_pow2<this_type>(pow2, *this, std::integral_constant<bool, std::is_trivial<key_type>::value && std::is_trivial<mapped_type>::value>());
+        hash_base::resize_pow2<this_type>(pow2, *this, std::integral_constant<bool, std::is_trivially_copyable<key_type>::value && std::is_trivially_copyable<mapped_type>::value>());
     }
 
     ALWAYS_INLINE void resize_next()
