@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <cstdint>
 
+//version 1.0.0
+
 #ifdef _WIN32
 #  include <pmmintrin.h>
 #  define ALWAYS_INLINE __forceinline
@@ -180,7 +182,7 @@ protected:
 #else
     __attribute__((noinline, noreturn))
 #endif
-    static void throw_bad_alloc() {
+        static void throw_bad_alloc() {
         throw std::bad_alloc();
     }
 
@@ -189,7 +191,7 @@ protected:
 #else
     __attribute__((noinline, noreturn))
 #endif
-    static void throw_length_error() {
+        static void throw_length_error() {
         throw std::length_error("size exceeded");
     }
 
@@ -280,23 +282,29 @@ protected:
         }
     }
 
-    template<typename storage_type, typename data_type, bool trivial>
-    ALWAYS_INLINE void clear() noexcept
+    template<typename storage_type, typename data_type>
+    ALWAYS_INLINE void clear(std::true_type) noexcept
+    {
+        if (_capacity) {
+            free(_elements);
+            ctor_empty();
+        }
+    }
+
+    template<typename storage_type, typename data_type>
+    ALWAYS_INLINE void clear(std::false_type) noexcept
     {
         if (!_capacity)
             return;
-        if (!trivial)
+        if (auto cnt = _size)
         {
-            if (auto cnt = _size)
+            for (storage_type* p = reinterpret_cast<storage_type*>(_elements);; ++p)
             {
-                for (storage_type* p = reinterpret_cast<storage_type*>(_elements);; ++p)
-                {
-                    if (p->mark >= ACTIVE_MARK) {
-                        cnt--;
-                        p->data.~data_type();
-                        if (!cnt)
-                            break;
-                    }
+                if (p->mark >= ACTIVE_MARK) {
+                    cnt--;
+                    p->data.~data_type();
+                    if (!cnt)
+                        break;
                 }
             }
         }
@@ -513,7 +521,7 @@ public:
     }
 
     void clear() noexcept {
-        hash_base::clear<storage_type, key_type, std::is_trivial<key_type>::value>();
+        hash_base::clear<storage_type, key_type>(std::is_trivial<key_type>());
     }
 
     void swap(hash_set& r) noexcept
@@ -702,7 +710,11 @@ private:
             i &= _capacity;
             auto& r = reinterpret_cast<storage_type*>(_elements)[i];
             if (!r.mark) {
-                if (std::is_trivial<key_type>::value) {
+                if
+#ifdef __cpp_if_constexpr
+                constexpr
+#endif
+                (std::is_trivial<key_type>::value) {
                     memcpy(&r, &st, sizeof(st));
                 } else {
                     new (&r) storage_type(std::forward<V>(st));
@@ -844,7 +856,7 @@ public:
     }
 
     void clear() noexcept {
-        hash_base::clear<storage_type, value_type, std::is_trivial<key_type>::value && std::is_trivial<mapped_type>::value>();
+        hash_base::clear<storage_type, value_type>(std::integral_constant<bool, std::is_trivial<key_type>::value && std::is_trivial<mapped_type>::value>());
     }
 
     void swap(this_type& r) noexcept
@@ -1137,7 +1149,11 @@ private:
             i &= _capacity;
             auto& r = reinterpret_cast<storage_type*>(_elements)[i];
             if (!r.mark) {
-                if (std::is_trivial<key_type>::value && std::is_trivial<mapped_type>::value) {
+                if
+#ifdef __cpp_if_constexpr
+                constexpr
+#endif
+                (std::is_trivial<key_type>::value && std::is_trivial<mapped_type>::value) {
                     memcpy(&r, &st, sizeof(st));
                 } else {
                     new (&r) storage_type(std::forward<V>(st));
