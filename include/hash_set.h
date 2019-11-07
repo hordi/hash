@@ -4,8 +4,9 @@
 #include <functional>
 #include <stdexcept>
 #include <cstdint>
+#include <intrin.h>
 
-//version 1.0.0
+//version 1.1.0
 
 #ifdef _WIN32
 #  include <pmmintrin.h>
@@ -22,50 +23,12 @@ class hash_base
 public:
     typedef size_t size_type;
 
-    static const uint32_t OFFSET_BASIS = 2166136261;
-
-    template<size_t SIZE>
-    static uint32_t hash_1(const void* ptr, uint32_t offset) noexcept {
-        return hash_base::fnv_1a((const char*)ptr, SIZE, offset);
-    }
-
-    template<typename T>
-    static uint32_t hash_1(const T& v, uint32_t offset) noexcept {
-        return hash_1<sizeof(T)>(&v, offset);
-    }
-
-    template<typename T>
-    static uint32_t hash(const T& v) noexcept {
-        return hash_1<sizeof(T)>(&v, hash_base::OFFSET_BASIS);
-    }
-    template<size_t SIZE>
-    static uint32_t hash(const void* ptr) noexcept {
-        return hash_1<SIZE>(ptr, hash_base::OFFSET_BASIS);
-    }
-
     template<typename T>
     struct hash_ : public std::hash<T> {
         ALWAYS_INLINE size_t operator()(const T& val) const noexcept {
             return hash_base::hash(val);
         }
     };
-
-    static ALWAYS_INLINE uint32_t fnv_1a(const char* key, size_t len, uint32_t hash32 = OFFSET_BASIS) noexcept
-    {
-        const uint32_t PRIME = 1607;
-
-        for (size_t cnt = len / sizeof(uint32_t); cnt--; key += sizeof(uint32_t))
-            hash32 = (hash32 ^ (*(uint32_t*)key)) * PRIME;
-
-        if (len & sizeof(uint16_t)) {
-            hash32 = (hash32 ^ (*(uint16_t*)key)) * PRIME;
-            key += sizeof(uint16_t);
-        }
-        if (len & 1)
-            hash32 = (hash32 ^ (*key)) * PRIME;
-
-        return hash32 ^ (hash32 >> 16);
-    }
 
     size_type size() const noexcept { return _size; }
     size_type capacity() const noexcept { return _capacity; }
@@ -91,6 +54,45 @@ protected:
         T data;
     };
 #pragma pack(pop)
+
+    static const uint32_t OFFSET_BASIS = 2166136261;
+
+    template<size_t SIZE>
+    static uint32_t hash_1(const void* ptr) noexcept {
+        return hash_base::fnv_1a((const char*)ptr, SIZE);
+    }
+
+    template<typename T>
+    static uint32_t hash_1(const T& v) noexcept {
+        return hash_1<sizeof(T)>(&v);
+    }
+
+    template<typename T>
+    static uint32_t hash(const T& v) noexcept {
+        return hash_1<sizeof(T)>(&v);
+    }
+    template<size_t SIZE>
+    static uint32_t hash(const void* ptr) noexcept {
+        return hash_1<SIZE>(ptr);
+    }
+
+    static ALWAYS_INLINE uint32_t fnv_1a(const char* key, size_t len) noexcept
+    {
+        const uint32_t PRIME = 1607;
+        uint32_t hash32 = OFFSET_BASIS;
+
+        for (size_t cnt = len / sizeof(uint32_t); cnt--; key += sizeof(uint32_t))
+            hash32 = (hash32 ^ (*(uint32_t*)key)) * PRIME;
+
+        if (len & sizeof(uint16_t)) {
+            hash32 = (hash32 ^ (*(uint16_t*)key)) * PRIME;
+            key += sizeof(uint16_t);
+        }
+        if (len & 1)
+            hash32 = (hash32 ^ (*key)) * PRIME;
+
+        return hash32 ^ (hash32 >> 16);
+    }
 
     ALWAYS_INLINE static uint32_t make_mark(size_t h) noexcept {
         return static_cast<uint32_t>(h | USED_MARK);
@@ -356,40 +358,44 @@ protected:
 };
 
 template<>
-ALWAYS_INLINE uint32_t hash_base::hash_1<1>(const void* ptr, uint32_t offset) noexcept {
-    uint32_t hash32 = (offset ^ (*(uint8_t*)ptr)) * 1607;
+ALWAYS_INLINE uint32_t hash_base::hash_1<1>(const void* ptr) noexcept {
+    uint32_t hash32 = (OFFSET_BASIS ^ (*(uint8_t*)ptr)) * 1607;
     return hash32 ^ (hash32 >> 16);
 }
 
 template<>
-ALWAYS_INLINE uint32_t hash_base::hash_1<2>(const void* ptr, uint32_t offset) noexcept {
-    uint32_t hash32 = (offset ^ (*(uint16_t*)ptr)) * 1607;
+ALWAYS_INLINE uint32_t hash_base::hash_1<2>(const void* ptr) noexcept {
+    uint32_t hash32 = (OFFSET_BASIS ^ (*(uint16_t*)ptr)) * 1607;
     return hash32 ^ (hash32 >> 16);
 }
 
 template<>
-ALWAYS_INLINE uint32_t hash_base::hash_1<4>(const void* ptr, uint32_t offset) noexcept {
-    uint32_t hash32 = (offset ^ (*(uint32_t*)ptr)) * 1607;
+ALWAYS_INLINE uint32_t hash_base::hash_1<4>(const void* ptr) noexcept {
+    uint32_t hash32 = (OFFSET_BASIS ^ (*(uint32_t*)ptr)) * 1607;
     return hash32 ^ (hash32 >> 16);
 }
 
 template<>
-ALWAYS_INLINE uint32_t hash_base::hash_1<8>(const void* ptr, uint32_t offset) noexcept {
+ALWAYS_INLINE uint32_t hash_base::hash_1<8>(const void* ptr) noexcept {
+    uint64_t h;
+    uint64_t l = _umul128(*(uint64_t*)ptr, 0xde5fb9d2630458e9ull, &h);
+    return static_cast<uint32_t>(h + l);
 
-    //return static_cast<uint32_t>(__umulh(0xfa1371431ef43ae1ull, *(uint64_t*)ptr) * 0xfe9b65e7da1b3187ull);
+/*
     uint32_t* key = (uint32_t*)ptr;
-    uint32_t hash32 = (((offset ^ key[0]) * 1607) ^ key[1]) * 1607;
+    uint32_t hash32 = (((OFFSET_BASIS ^ key[0]) * 1607) ^ key[1]) * 1607;
     return hash32 ^ (hash32 >> 16);
+*/
 }
 
 template<>
-ALWAYS_INLINE uint32_t hash_base::hash_1<12>(const void* ptr, uint32_t offset) noexcept
+ALWAYS_INLINE uint32_t hash_base::hash_1<12>(const void* ptr) noexcept
 {
     const uint32_t* key = reinterpret_cast<const uint32_t*>(ptr);
 
     const uint32_t PRIME = 1607;
 
-    uint32_t hash32 = (offset ^ key[0]) * PRIME;
+    uint32_t hash32 = (OFFSET_BASIS ^ key[0]) * PRIME;
     hash32 = (hash32 ^ key[1]) * PRIME;
     hash32 = (hash32 ^ key[2]) * PRIME;
 
@@ -397,13 +403,13 @@ ALWAYS_INLINE uint32_t hash_base::hash_1<12>(const void* ptr, uint32_t offset) n
 }
 
 template<>
-ALWAYS_INLINE uint32_t hash_base::hash_1<16>(const void* ptr, uint32_t offset) noexcept
+ALWAYS_INLINE uint32_t hash_base::hash_1<16>(const void* ptr) noexcept
 {
     const uint32_t* key = reinterpret_cast<const uint32_t*>(ptr);
 
     const uint32_t PRIME = 1607;
 
-    uint32_t hash32 = (offset ^ key[0]) * PRIME;
+    uint32_t hash32 = (OFFSET_BASIS ^ key[0]) * PRIME;
     hash32 = (hash32 ^ key[1]) * PRIME;
     hash32 = (hash32 ^ key[2]) * PRIME;
     hash32 = (hash32 ^ key[3]) * PRIME;
