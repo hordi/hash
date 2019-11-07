@@ -371,8 +371,12 @@ ALWAYS_INLINE uint32_t hash_base::hash_1<2>(const void* ptr) noexcept {
 
 template<>
 ALWAYS_INLINE uint32_t hash_base::hash_1<4>(const void* ptr) noexcept {
+    uint64_t h, l = _umul128(*(uint32_t*)ptr, 0xde5fb9d2630458e9ull, &h);
+    return static_cast<uint32_t>(h + l);
+/*
     uint32_t hash32 = (OFFSET_BASIS ^ (*(uint32_t*)ptr)) * 1607;
     return hash32 ^ (hash32 >> 16);
+*/
 }
 
 template<>
