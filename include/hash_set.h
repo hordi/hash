@@ -76,10 +76,9 @@ protected:
         return hash_1<SIZE>(ptr);
     }
 
-    static ALWAYS_INLINE uint32_t fnv_1a(const char* key, size_t len) noexcept
+    static ALWAYS_INLINE uint32_t fnv_1a(const char* key, size_t len, uint32_t hash32 = OFFSET_BASIS) noexcept
     {
         const uint32_t PRIME = 1607;
-        uint32_t hash32 = OFFSET_BASIS;
 
         for (size_t cnt = len / sizeof(uint32_t); cnt--; key += sizeof(uint32_t))
             hash32 = (hash32 ^ (*(uint32_t*)key)) * PRIME;
