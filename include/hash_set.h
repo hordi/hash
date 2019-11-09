@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <intrin.h>
 
-//version 1.1.0
+//version 1.1.1
 
 #ifdef _WIN32
 #  include <pmmintrin.h>
@@ -98,7 +98,7 @@ protected:
     }
 
     template<typename this_type>
-    static void resize_pow2(size_t pow2, hash_base& ref, std::true_type /*all data is trivial*/)
+    static void resize_pow2(size_t pow2, hash_base& ref, std::true_type /*trivial data*/)
     {
         typename this_type::storage_type* elements = (typename this_type::storage_type*)calloc(pow2--, sizeof(typename this_type::storage_type));
         if (!elements)
@@ -133,7 +133,7 @@ protected:
     }
 
     template<typename this_type>
-    static void resize_pow2(size_t pow2, hash_base& ref, std::false_type /*all data is trivial*/)
+    static void resize_pow2(size_t pow2, hash_base& ref, std::false_type /*non-trivial data*/)
     {
         this_type tmp(pow2, false);
         if (ref._size) //rehash
@@ -559,54 +559,23 @@ public:
         return find_insert(std::forward<K>(val));
     }
 
-    iterator find(const key_type& k) noexcept {
-        const_iterator it = static_cast<const this_type*>(this)->find(k);
-        return iterator(it._ptr, it._cnt);
+    ALWAYS_INLINE iterator find(const key_type& k) noexcept {
+        return iterator(find_(k), 0);
     }
 
-    const_iterator find(const key_type& k) const noexcept
-    {
-        const uint32_t mark = make_mark(_hf(k));
-        for (size_t i = mark;; ++i)
-        {
-            i &= _capacity;
-            auto& r = reinterpret_cast<storage_type*>(_elements)[i];
-            uint32_t h = r.mark;
-            if (h == mark)
-            {
-                if (_eql(r.data, k)) //identical found
-                    return const_iterator(&r, 0);
-            }
-            else if (!h)
-                break;
-        }
-        return const_iterator();
+    ALWAYS_INLINE const_iterator find(const key_type& k) const noexcept {
+        return const_iterator(find_(k), 0);
     }
 
-    size_type count(const key_type& k) const noexcept
-    {
-        const uint32_t mark = make_mark(_hf(k));
-        for (size_t i = mark;; ++i)
-        {
-            i &= _capacity;
-            auto& r = reinterpret_cast<storage_type*>(_elements)[i];
-            uint32_t h = r.mark;
-            if (h == mark)
-            {
-                if (_eql(r.second, k)) //identical found
-                    return 1;
-            }
-            else if (!h)
-                break;
-        }
-        return 0;
+    inline size_type count(const key_type& k) const noexcept {
+        return find_(k) != nullptr;
     }
 
     /*! Can invalidate iterators.
     * \params it - Iterator pointing to a single element to be removed
     * \return an iterator pointing to the position immediately following of the element erased
     */
-    iterator erase(const_iterator it) noexcept
+    inline iterator erase(const_iterator it) noexcept
     {
         if (auto ptr = it._ptr) //valid
         {
@@ -627,11 +596,10 @@ public:
     * \params k - Key of the element to be erased
     * \return 1 - if element erased and zero otherwise
     */
-    size_type erase(const key_type& k) noexcept
+    inline size_type erase(const key_type& k) noexcept
     {
-        iterator i = find(k);
-        if (i._ptr) {
-            deleteElement<storage_type, value_type>(i._ptr);
+        if (auto ptr = find_(k)) {
+            deleteElement<storage_type, value_type>(ptr);
             return 1;
         }
         return 0;
@@ -658,9 +626,26 @@ public:
     }
 
 private:
-    hash_set(size_type pow2, bool)
-    {
+    hash_set(size_type pow2, bool) {
         ctor_pow2(pow2, sizeof(storage_type));
+    }
+
+    ALWAYS_INLINE storage_type* find_(const key_type& k) const noexcept
+    {
+        const uint32_t mark = make_mark(_hf(k));
+        for (size_t i = mark;; ++i)
+        {
+            i &= _capacity;
+            auto& r = reinterpret_cast<storage_type*>(_elements)[i];
+            uint32_t h = r.mark;
+            if (h == mark)
+            {
+                if (_eql(r.data, k)) //identical found
+                    return &r;
+            }
+            else if (!h)
+                return nullptr;
+        }
     }
 
     template<typename V>
@@ -900,54 +885,23 @@ public:
         return find_emplace(std::forward<K>(key), std::forward<Args>(args)...);
     }
 
-    iterator find(const key_type& k) noexcept {
-        const_iterator it = static_cast<const this_type*>(this)->find(k);
-        return iterator(it._ptr, it._cnt);
+    ALWAYS_INLINE iterator find(const key_type& k) noexcept {
+        return iterator(find_(k), 0);
     }
 
-    const_iterator find(const key_type& k) const noexcept
-    {
-        const uint32_t mark = make_mark(_hf(k));
-        for (size_t i = mark;; ++i)
-        {
-            i &= _capacity;
-            auto& r = reinterpret_cast<storage_type*>(_elements)[i];
-            uint32_t h = r.mark;
-            if (h == mark)
-            {
-                if (_eql(r.data.first, k)) //identical found
-                    return const_iterator(&r, 0);
-            }
-            else if (!h)
-                break;
-        }
-        return const_iterator();
+    ALWAYS_INLINE const_iterator find(const key_type& k) const noexcept {
+        return const_iterator(find_(k), 0);
     }
 
-    size_type count(const key_type& k) const noexcept
-    {
-        const uint32_t mark = make_mark(_hf(k));
-        for (size_t i = mark;; ++i)
-        {
-            i &= _capacity;
-            auto& r = reinterpret_cast<storage_type*>(_elements)[i];
-            uint32_t h = r.mark;
-            if (h == mark)
-            {
-                if (_eql(r.data.first, k)) //identical found
-                    return 1;
-            }
-            else if (!h)
-                break;
-        }
-        return 0;
+    ALWAYS_INLINE size_type count(const key_type& k) const noexcept {
+        return find_(k) != nullptr;
     }
 
     /*! Can invalidate iterators.
     * \params it - Iterator pointing to a single element to be removed
     * \return return an iterator pointing to the position immediately following of the element erased
     */
-    iterator erase(const_iterator it) noexcept
+    inline iterator erase(const_iterator it) noexcept
     {
         if (auto ptr = it._ptr) //valid
         {
@@ -968,11 +922,10 @@ public:
     * \params k - Key of the element to be erased
     * \return 1 - if element erased and zero otherwise
     */
-    size_type erase(const key_type& k) noexcept
+    inline size_type erase(const key_type& k) noexcept
     {
-        iterator i = find(k);
-        if (i._ptr) {
-            deleteElement<storage_type, value_type>(i._ptr);
+        if (auto ptr = find_(k)) {
+            deleteElement<storage_type, value_type>(ptr);
             return 1;
         }
         return 0;
@@ -1006,9 +959,26 @@ public:
     }
 
 private:
-    hash_map(size_type pow2, bool)
-    {
+    hash_map(size_type pow2, bool) {
         ctor_pow2(pow2, sizeof(storage_type));
+    }
+
+    storage_type* find_(const key_type& k) const noexcept
+    {
+        const uint32_t mark = make_mark(_hf(k));
+        for (size_t i = mark;; ++i)
+        {
+            i &= _capacity;
+            auto& r = reinterpret_cast<storage_type*>(_elements)[i];
+            uint32_t h = r.mark;
+            if (h == mark)
+            {
+                if (_eql(r.data.first, k)) //identical found
+                    return &r;
+            }
+            else if (!h)
+                return nullptr;
+        }
     }
 
     template<typename K, typename... Args>
