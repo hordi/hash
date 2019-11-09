@@ -590,7 +590,7 @@ public:
         {
             i &= _capacity;
             auto& r = reinterpret_cast<storage_type*>(_elements)[i];
-            uint32_t h = r.first;
+            uint32_t h = r.mark;
             if (h == mark)
             {
                 if (_eql(r.second, k)) //identical found
