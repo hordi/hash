@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <intrin.h>
 
-//version 1.1.1
+//version 1.1.2
 
 #ifdef _WIN32
 #  include <pmmintrin.h>
@@ -458,7 +458,8 @@ public:
         _hf(hf),
         _eql(eql)
     {
-        ctor_pow2(roundup(hint_size * 2), sizeof(storage_type));
+        // |1 to prevent 0-usage (produces _capacity = 0 finally)
+        ctor_pow2(roundup((hint_size | 1) * 2), sizeof(storage_type));
     }
 
     hash_set(const this_type& r) :
@@ -779,7 +780,8 @@ public:
         _hf(hf),
         _eql(eql)
     {
-        ctor_pow2(roundup(hint_size * 2), sizeof(storage_type));
+        // |1 to prevent 0-usage (produces _capacity = 0 finally)
+        ctor_pow2(roundup((hint_size | 1) * 2), sizeof(storage_type));
     }
 
     hash_map(const this_type& r) :
