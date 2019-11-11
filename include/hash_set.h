@@ -34,6 +34,11 @@ public:
         }
     };
 
+    template<size_t SIZE>
+    static uint32_t hash(const void* ptr) noexcept {
+        return hash_1<SIZE>(ptr);
+    }
+
     size_type size() const noexcept { return _size; }
     size_type capacity() const noexcept { return _capacity; }
 
@@ -74,10 +79,6 @@ protected:
     template<typename T>
     static uint32_t hash(const T& v) noexcept {
         return hash_1<sizeof(T)>(&v);
-    }
-    template<size_t SIZE>
-    static uint32_t hash(const void* ptr) noexcept {
-        return hash_1<SIZE>(ptr);
     }
 
     static HRD_ALWAYS_INLINE uint32_t fnv_1a(const char* key, size_t len, uint32_t hash32 = OFFSET_BASIS) noexcept
@@ -183,7 +184,7 @@ protected:
                     typedef typename this_type::value_type VT;
 
                     VT& r = p->data;
-                    tmp.insert_unique(std::move(*p), std::false_type);
+                    tmp.insert_unique(std::move(*p), std::false_type());
                     r.~VT();
 
                     //next 2 lines to cover any exception that occurs during next tmp.insert_unique(std::move(r));
@@ -368,7 +369,7 @@ protected:
         if (auto cnt = _size)
         {
             typedef typename this_type::storage_type storage_type;
-            typedef typename this_type::data_type data_type;
+            typedef typename this_type::value_type data_type;
 
             for (storage_type* p = reinterpret_cast<storage_type*>(_elements);; ++p)
             {
