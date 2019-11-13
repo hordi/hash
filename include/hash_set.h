@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <intrin.h>
 
-//version 1.2.0
+//version 1.2.1
 
 #ifdef _WIN32
 #  include <pmmintrin.h>
@@ -437,6 +437,45 @@ protected:
         }
     }
 
+    template<typename V, class this_type>
+    HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::true_type /*resized*/)
+    {
+        const uint32_t mark = make_mark(ref._hf(this_type::key_getter::get_key(val)));
+        for (size_t i = mark;; ++i)
+        {
+            i &= _capacity;
+            typename this_type::storage_type* r = reinterpret_cast<typename this_type::storage_type*>(_elements) + i;
+            uint32_t h = r->mark;
+            if (!h)
+            {
+                typedef typename this_type::value_type value_type;
+
+                new (&r->data) value_type(std::forward<V>(val));
+                r->mark = mark;
+                _size++;
+                return;
+            }
+            if (h == mark && HRD_LIKELY(ref._eql(this_type::key_getter::get_key(r->data), this_type::key_getter::get_key(val)))) //identical found
+                return;
+        }
+    }
+
+    template<typename V, class this_type>
+    HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::false_type /*not resized yet*/)
+    {
+        auto unused_cnt = _capacity - _size;
+        if (HRD_UNLIKELY(unused_cnt <= _size))
+            resize_next<this_type>();
+
+        ctor_insert_(std::forward<V>(val), ref, std::true_type());
+    }
+
+    template <typename Iter, class this_type, typename SIZE_PREPARED>
+    void ctor_insert_(Iter first, Iter last, this_type& ref, SIZE_PREPARED) {
+        for (; first != last; ++first)
+            ctor_insert_(*first, ref, SIZE_PREPARED());
+    }
+
     template<typename key_type, class this_type>
     HRD_ALWAYS_INLINE typename this_type::storage_type* find_(const key_type& k, this_type& ref) const noexcept
     {
@@ -616,14 +655,6 @@ public:
         ctor_empty();
     }
 
-    hash_set(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        _hf(hf),
-        _eql(eql)
-    {
-        // |1 to prevent 0-usage (produces _capacity = 0 finally)
-        ctor_pow2(roundup((hint_size | 1) * 2), sizeof(storage_type));
-    }
-
     hash_set(const this_type& r) :
         _hf(r._hf),
         _eql(r._eql)
@@ -648,11 +679,36 @@ public:
             ctor_empty();
     }
 
+    hash_set(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
+        _hf(hf),
+        _eql(eql)
+    {
+        // |1 to prevent 0-usage (produces _capacity = 0 finally)
+        ctor_pow2(roundup((hint_size | 1) * 2), sizeof(storage_type));
+    }
+
+    template<typename Iter>
+    hash_set(Iter first, Iter last, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
+        _hf(hf),
+        _eql(eql)
+    {
+        ctor_empty();
+        ctor_insert_(first, last, *this, std::false_type());
+    }
+
+    hash_set(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
+        _hf(hf),
+        _eql(eql)
+    {
+        ctor_pow2(roundup((lst.size() | 1) * 2), sizeof(storage_type));
+        ctor_insert_(lst.begin(), lst.end(), *this, std::true_type());
+    }
+
     ~hash_set() {
         clear();
     }
 
-    HRD_ALWAYS_INLINE iterator begin() noexcept
+    iterator begin() noexcept
     {
         auto pm = reinterpret_cast<storage_type*>(_elements);
 
@@ -713,6 +769,13 @@ public:
     template<class P>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> insert(P&& val) {
         return insert_(std::forward<P>(val), const_cast<this_type&>(*this));
+    }
+
+    /*! Can invalidate iterators. */
+    void insert(std::initializer_list<value_type> lst)
+    {
+        for (auto i = lst.begin(), e = lst.end(); i != e; ++i)
+            insert_(*i, *this);
     }
 
     /*! Can invalidate iterators. */
@@ -836,14 +899,6 @@ public:
         ctor_empty();
     }
 
-    hash_map(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        _hf(hf),
-        _eql(eql)
-    {
-        // |1 to prevent 0-usage (produces _capacity = 0 finally)
-        ctor_pow2(roundup((hint_size | 1) * 2), sizeof(storage_type));
-    }
-
     hash_map(const this_type& r) :
         _hf(r._hf),
         _eql(r._eql)
@@ -868,11 +923,36 @@ public:
             ctor_empty();
     }
 
+    hash_map(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
+        _hf(hf),
+        _eql(eql)
+    {
+        // |1 to prevent 0-usage (produces _capacity = 0 finally)
+        ctor_pow2(roundup((hint_size | 1) * 2), sizeof(storage_type));
+    }
+
+    template<typename Iter>
+    hash_map(Iter first, Iter last, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
+        _hf(hf),
+        _eql(eql)
+    {
+        ctor_empty();
+        ctor_insert_(first, last, *this, std::false_type());
+    }
+
+    hash_map(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
+        _hf(hf),
+        _eql(eql)
+    {
+        ctor_pow2(roundup((lst.size() | 1) * 2), sizeof(storage_type));
+        ctor_insert_(lst.begin(), lst.end(), *this, std::true_type());
+    }
+
     ~hash_map() {
         clear();
     }
 
-    HRD_ALWAYS_INLINE iterator begin() noexcept
+    iterator begin() noexcept
     {
         auto pm = reinterpret_cast<storage_type*>(_elements);
         auto cnt = _size;
@@ -932,6 +1012,13 @@ public:
     template <class P>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> insert(P&& val) {
         return insert_(std::forward<P>(val), const_cast<this_type&>(*this));
+    }
+
+    /*! Can invalidate iterators. */
+    void insert(std::initializer_list<value_type> lst)
+    {
+        for (auto i = lst.begin(), e = lst.end(); i != e; ++i)
+            insert_(*i, *this);
     }
 
     /*! Can invalidate iterators. */
