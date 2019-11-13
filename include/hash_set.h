@@ -508,6 +508,20 @@ protected:
         }
     }
 
+    template<typename Iter, class this_type>
+    HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, this_type& ref, std::random_access_iterator_tag)
+    {
+        ctor_pow2(roundup((std::distance(first, last) | 1) * 2), sizeof(typename this_type::storage_type));
+        ctor_insert_(first, last, ref, std::true_type());
+    }
+
+    template<typename Iter, class this_type, typename XXX>
+    HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, this_type& ref, XXX)
+    {
+        ctor_empty();
+        ctor_insert_(first, last, ref, std::false_type());
+    }
+
     HRD_ALWAYS_INLINE void ctor_empty() noexcept
     {
         _size = 0;
@@ -692,8 +706,8 @@ public:
         _hf(hf),
         _eql(eql)
     {
-        ctor_empty();
-        ctor_insert_(first, last, *this, std::false_type());
+        typedef typename std::iterator_traits<Iter>::iterator_category category;
+        ctor_iters(first, last, *this, category());
     }
 
     hash_set(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
@@ -936,8 +950,8 @@ public:
         _hf(hf),
         _eql(eql)
     {
-        ctor_empty();
-        ctor_insert_(first, last, *this, std::false_type());
+        typedef typename std::iterator_traits<Iter>::iterator_category category;
+        ctor_iters(first, last, *this, category());
     }
 
     hash_map(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
