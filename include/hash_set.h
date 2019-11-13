@@ -226,7 +226,7 @@ protected:
         }
     }
 
-    static HRD_ALWAYS_INLINE size_t roundup(size_t sz) noexcept
+    HRD_ALWAYS_INLINE static size_t roundup(size_t sz) noexcept
     {
 #ifdef _WIN32
         unsigned long idx;
@@ -271,7 +271,7 @@ protected:
         public:
             const_iterator() noexcept : _ptr(nullptr), _cnt(0) {}
 
-            const_iterator& operator++() noexcept
+            HRD_ALWAYS_INLINE const_iterator& operator++() noexcept
             {
                 typename base::storage_type* p = _ptr;
                 if (_cnt)
@@ -286,7 +286,7 @@ protected:
                 return *this;
             }
 
-            const_iterator operator++(int) noexcept
+            HRD_ALWAYS_INLINE const_iterator operator++(int) noexcept
             {
                 const_iterator ret(*this);
                 ++(*this);
@@ -387,7 +387,7 @@ protected:
     }
 
     template<typename V, class this_type>
-    std::pair<typename this_type::iterator, bool> insert_(V&& val, this_type& ref)
+    HRD_ALWAYS_INLINE std::pair<typename this_type::iterator, bool> insert_(V&& val, this_type& ref)
     {
         const uint32_t mark = make_mark(ref._hf(this_type::key_getter::get_key(val)));
         size_t i = mark;
@@ -438,7 +438,7 @@ protected:
     }
 
     template<typename key_type, class this_type>
-    typename this_type::storage_type* find_(const key_type& k, this_type& ref) const noexcept
+    HRD_ALWAYS_INLINE typename this_type::storage_type* find_(const key_type& k, this_type& ref) const noexcept
     {
         const uint32_t mark = make_mark(ref._hf(k));
         for (size_t i = mark;; ++i)
@@ -648,12 +648,11 @@ public:
             ctor_empty();
     }
 
-    ~hash_set()
-    {
+    ~hash_set() {
         clear();
     }
 
-    iterator begin() noexcept
+    HRD_ALWAYS_INLINE iterator begin() noexcept
     {
         auto pm = reinterpret_cast<storage_type*>(_elements);
 
@@ -694,7 +693,7 @@ public:
             resize_pow2<this_type>(roundup(hint));
     }
 
-    void clear() noexcept {
+    HRD_ALWAYS_INLINE void clear() noexcept {
         hash_base::clear<this_type>(IS_TRIVIALLY_COPYABLE());
     }
 
@@ -869,12 +868,11 @@ public:
             ctor_empty();
     }
 
-    ~hash_map()
-    {
+    ~hash_map() {
         clear();
     }
 
-    iterator begin() noexcept
+    HRD_ALWAYS_INLINE iterator begin() noexcept
     {
         auto pm = reinterpret_cast<storage_type*>(_elements);
         auto cnt = _size;
@@ -1032,7 +1030,7 @@ private:
     }
 
     template<typename K, typename... Args>
-    std::pair<iterator, bool> emplace_(K&& k, Args&&... args)
+    HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace_(K&& k, Args&&... args)
     {
         const uint32_t mark = make_mark(_hf(k));
         size_t i = mark;
@@ -1081,7 +1079,7 @@ private:
     }
 
     template<typename V>
-    mapped_type& find_insert(V&& k)
+    HRD_ALWAYS_INLINE mapped_type& find_insert(V&& k)
     {
         const uint32_t mark = make_mark(_hf(k));
         size_t i = mark;
