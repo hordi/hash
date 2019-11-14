@@ -533,23 +533,23 @@ protected:
     HRD_ALWAYS_INLINE void swap(hash_base& r)
     {
         __m128i mm0 = _mm_loadu_si128((__m128i*)this);
-        __m128i r_mm0 = _mm_loadu_si128((__m128i*)&r);
+        __m128i r_mm0 = _mm_loadu_si128((__m128i*) & r);
 
 #if defined(_WIN64) || defined(__LP64__)
         static_assert(sizeof(r) == 32, "must be sizeof(hash_base)==32");
 
         __m128i mm1 = _mm_loadu_si128((__m128i*)this + 1);
-        __m128i r_mm1 = _mm_loadu_si128((__m128i*)&r + 1);
+        __m128i r_mm1 = _mm_loadu_si128((__m128i*) & r + 1);
 
         _mm_storeu_si128((__m128i*)this, r_mm0);
         _mm_storeu_si128((__m128i*)this + 1, r_mm1);
-        _mm_storeu_si128((__m128i*)&r, mm0);
-        _mm_storeu_si128((__m128i*)&r + 1, mm1);
+        _mm_storeu_si128((__m128i*) & r, mm0);
+        _mm_storeu_si128((__m128i*) & r + 1, mm1);
 #else
         static_assert(sizeof(r) == 16, "must be sizeof(hash_base)==16");
 
         _mm_storeu_si128((__m128i*)this, r_mm0);
-        _mm_storeu_si128((__m128i*)&r, mm0);
+        _mm_storeu_si128((__m128i*) & r, mm0);
 #endif
 
         if (!_capacity)
@@ -580,10 +580,10 @@ template<>
 HRD_ALWAYS_INLINE uint32_t hash_base::hash_1<4>(const void* ptr) noexcept {
     uint64_t h, l = _umul128(*(uint32_t*)ptr, 0xde5fb9d2630458e9ull, &h);
     return static_cast<uint32_t>(h + l);
-/*
-    uint32_t hash32 = (OFFSET_BASIS ^ (*(uint32_t*)ptr)) * 1607;
-    return hash32 ^ (hash32 >> 16);
-*/
+    /*
+        uint32_t hash32 = (OFFSET_BASIS ^ (*(uint32_t*)ptr)) * 1607;
+        return hash32 ^ (hash32 >> 16);
+    */
 }
 
 template<>
@@ -592,11 +592,11 @@ HRD_ALWAYS_INLINE uint32_t hash_base::hash_1<8>(const void* ptr) noexcept {
     uint64_t l = _umul128(*(uint64_t*)ptr, 0xde5fb9d2630458e9ull, &h);
     return static_cast<uint32_t>(h + l);
 
-/*
-    uint32_t* key = (uint32_t*)ptr;
-    uint32_t hash32 = (((OFFSET_BASIS ^ key[0]) * 1607) ^ key[1]) * 1607;
-    return hash32 ^ (hash32 >> 16);
-*/
+    /*
+        uint32_t* key = (uint32_t*)ptr;
+        uint32_t hash32 = (((OFFSET_BASIS ^ key[0]) * 1607) ^ key[1]) * 1607;
+        return hash32 ^ (hash32 >> 16);
+    */
 }
 
 template<>
@@ -646,8 +646,8 @@ public:
     typedef Hash                        hasher;
     typedef Pred                        key_equal;
     typedef const key_type              value_type;
-    typedef value_type&                 reference;
-    typedef const value_type&           const_reference;
+    typedef value_type& reference;
+    typedef const value_type& const_reference;
 
 private:
     friend iterator_base<this_type>;
@@ -685,12 +685,11 @@ public:
         _hf(std::move(r._hf)),
         _eql(std::move(r._eql))
     {
-        if (HRD_LIKELY(r._size)) {
-            *(hash_base*)this = r;
+        memcpy(this, &r, sizeof(hash_base));
+        if (HRD_LIKELY(r._capacity))
             r.ctor_empty();
-        }
         else
-            ctor_empty();
+            _elements = &_size; //0-hash indicates empty element - use this trick to prevent redundant "is empty" check in find-function
     }
 
     hash_set(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
@@ -890,8 +889,8 @@ public:
     typedef Hash                                    hasher;
     typedef Pred                                    key_equal;
     typedef std::pair<const key_type, mapped_type>  value_type;
-    typedef value_type&                             reference;
-    typedef const value_type&                       const_reference;
+    typedef value_type& reference;
+    typedef const value_type& const_reference;
 
 private:
     friend iterator_base<this_type>;
@@ -929,12 +928,11 @@ public:
         _hf(std::move(r._hf)),
         _eql(std::move(r._eql))
     {
-        if (HRD_LIKELY(r._size)) {
-            *(hash_base*)this = r;
+        memcpy(this, &r, sizeof(hash_base));
+        if (HRD_LIKELY(r._capacity))
             r.ctor_empty();
-        }
         else
-            ctor_empty();
+            _elements = &_size; //0-hash indicates empty element - use this trick to prevent redundant "is empty" check in find-function
     }
 
     hash_map(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
@@ -1112,7 +1110,7 @@ public:
         return *this;
     }
 
-    HRD_ALWAYS_INLINE  hash_map& operator=(hash_map&& r) noexcept {
+    HRD_ALWAYS_INLINE hash_map& operator=(hash_map&& r) noexcept {
         swap(r);
         return *this;
     }
