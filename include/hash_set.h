@@ -726,8 +726,7 @@ public:
         _hf(hf),
         _eql(eql)
     {
-        typedef typename std::iterator_traits<Iter>::iterator_category category;
-        ctor_iters(first, last, *this, category());
+        ctor_iters(first, last, *this, Iter::iterator_category());
     }
 
     hash_set(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
@@ -951,8 +950,7 @@ public:
         _hf(hf),
         _eql(eql)
     {
-        typedef typename std::iterator_traits<Iter>::iterator_category category;
-        ctor_iters(first, last, *this, category());
+        ctor_iters(first, last, *this, Iter::iterator_category());
     }
 
     hash_map(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
