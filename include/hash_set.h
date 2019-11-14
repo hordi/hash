@@ -215,15 +215,25 @@ protected:
             throw_length_error();
     }
 
-    //enough space must be allocated before
     template<typename this_type>
-    HRD_ALWAYS_INLINE void ctor_assign(const this_type& r)
+    void ctor_copy(const this_type& r)
     {
         typedef typename this_type::storage_type StorageType;
-        auto cnt = r._size;
-        for (auto i = r.begin(); cnt--; ++i) {
-            insert_unique(*(i._ptr), this_type::IS_TRIVIALLY_COPYABLE());
+
+        size_t cnt = r._size;
+        if (HRD_LIKELY(cnt)) {
+            ctor_pow2(r._capacity + 1, sizeof(StorageType));
+            for (const StorageType* p = reinterpret_cast<StorageType*>(r._elements);; ++p)
+            {
+                if (p->mark >= ACTIVE_MARK) {
+                    insert_unique(*p, this_type::IS_TRIVIALLY_COPYABLE());
+                    if (!--cnt)
+                        break;
+                }
+            }
         }
+        else
+            ctor_empty();
     }
 
     HRD_ALWAYS_INLINE static size_t roundup(size_t sz) noexcept
@@ -673,12 +683,7 @@ public:
         _hf(r._hf),
         _eql(r._eql)
     {
-        if (HRD_LIKELY(r._size)) {
-            ctor_pow2(r._capacity + 1, sizeof(storage_type));
-            ctor_assign(r);
-        }
-        else
-            ctor_empty();
+        ctor_copy(r);
     }
 
     hash_set(this_type&& r) noexcept :
@@ -907,12 +912,7 @@ public:
         _hf(r._hf),
         _eql(r._eql)
     {
-        if (HRD_LIKELY(r._size)) {
-            ctor_pow2(r._capacity + 1, sizeof(storage_type));
-            ctor_assign(r);
-        }
-        else
-            ctor_empty();
+        ctor_copy(r);
     }
 
     hash_map(this_type&& r) noexcept :
