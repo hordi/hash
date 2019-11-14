@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <intrin.h>
 
-//version 1.2.1
+//version 1.2.2
 
 #ifdef _WIN32
 #  include <pmmintrin.h>
@@ -849,17 +849,8 @@ public:
         hash_base::shrink_to_fit<this_type>();
     }
 
-    inline hash_set& operator=(const hash_set& r)
-    {
-        if (HRD_LIKELY(this != &r))
-        {
-            clear();
-            if (HRD_LIKELY(r._size))
-            {
-                ctor_pow2(r._capacity + 1, sizeof(storage_type));
-                ctor_assign(r);
-            }
-        }
+    HRD_ALWAYS_INLINE hash_set& operator=(const hash_set& r) {
+        this_type(r).swap(*this);
         return *this;
     }
 
@@ -1096,17 +1087,8 @@ public:
         hash_base::shrink_to_fit<this_type>();
     }
 
-    inline hash_map& operator=(const hash_map& r)
-    {
-        if (this != &r)
-        {
-            clear();
-            if (r._size)
-            {
-                ctor_pow2(r._capacity + 1, sizeof(storage_type));
-                ctor_assign(r);
-            }
-        }
+    HRD_ALWAYS_INLINE hash_map& operator=(const hash_map& r) {
+        this_type(r).swap(*this);
         return *this;
     }
 
