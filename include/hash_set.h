@@ -56,7 +56,7 @@ protected:
     template<class T>
     struct StorageItem
     {
-        StorageItem(StorageItem&& r) : data(std::move(r.data)) { mark = r.mark; /*set mark after data-ctor call*/}
+        StorageItem(StorageItem&& r) : data(std::move(r.data)) { mark = r.mark; /*set mark after data-ctor call, if any exception happens nothing break old mark value*/ }
         StorageItem(const StorageItem& r) : data(r.data) { mark = r.mark; }
 
         uint32_t mark;
