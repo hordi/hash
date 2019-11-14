@@ -288,6 +288,12 @@ protected:
         class const_iterator
         {
         public:
+            typedef std::forward_iterator_tag iterator_category;
+            typedef typename base::value_type value_type;
+            typedef typename base::value_type* pointer;
+            typedef typename base::value_type& reference;
+            typedef std::ptrdiff_t difference_type;
+
             const_iterator() noexcept : _ptr(nullptr), _cnt(0) {}
 
             HRD_ALWAYS_INLINE const_iterator& operator++() noexcept
@@ -330,6 +336,11 @@ protected:
         class iterator : public const_iterator
         {
         public:
+            using const_iterator::iterator_category;
+            using const_iterator::value_type;
+            using const_iterator::pointer;
+            using const_iterator::reference;
+            using const_iterator::difference_type;
             using const_iterator::operator*;
             using const_iterator::operator->;
 
