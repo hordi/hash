@@ -216,7 +216,7 @@ protected:
     }
 
     template<typename this_type>
-    void ctor_copy(const this_type& r)
+    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r)
     {
         typedef typename this_type::storage_type StorageType;
 
@@ -234,6 +234,15 @@ protected:
         }
         else
             ctor_empty();
+    }
+
+    HRD_ALWAYS_INLINE void ctor_move(hash_base&& r)
+    {
+        memcpy(this, &r, sizeof(hash_base));
+        if (HRD_LIKELY(r._capacity))
+            r.ctor_empty();
+        else
+            _elements = &_size; //0-hash indicates empty element - use this trick to prevent redundant "is empty" check in find-function
     }
 
     HRD_ALWAYS_INLINE static size_t roundup(size_t sz) noexcept
@@ -690,11 +699,7 @@ public:
         _hf(std::move(r._hf)),
         _eql(std::move(r._eql))
     {
-        memcpy(this, &r, sizeof(hash_base));
-        if (HRD_LIKELY(r._capacity))
-            r.ctor_empty();
-        else
-            _elements = &_size; //0-hash indicates empty element - use this trick to prevent redundant "is empty" check in find-function
+        ctor_move(std::move(r));
     }
 
     hash_set(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
@@ -919,11 +924,7 @@ public:
         _hf(std::move(r._hf)),
         _eql(std::move(r._eql))
     {
-        memcpy(this, &r, sizeof(hash_base));
-        if (HRD_LIKELY(r._capacity))
-            r.ctor_empty();
-        else
-            _elements = &_size; //0-hash indicates empty element - use this trick to prevent redundant "is empty" check in find-function
+        ctor_move(std::move(r));
     }
 
     hash_map(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
