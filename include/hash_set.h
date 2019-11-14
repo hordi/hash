@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <intrin.h>
 
-//version 1.2.2
+//version 1.2.3
 
 #ifdef _WIN32
 #  include <pmmintrin.h>
@@ -215,36 +215,6 @@ protected:
             throw_length_error();
     }
 
-    template<typename this_type>
-    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r)
-    {
-        typedef typename this_type::storage_type StorageType;
-
-        size_t cnt = r._size;
-        if (HRD_LIKELY(cnt)) {
-            ctor_pow2(r._capacity + 1, sizeof(StorageType));
-            for (const StorageType* p = reinterpret_cast<StorageType*>(r._elements);; ++p)
-            {
-                if (p->mark >= ACTIVE_MARK) {
-                    insert_unique(*p, this_type::IS_TRIVIALLY_COPYABLE());
-                    if (!--cnt)
-                        break;
-                }
-            }
-        }
-        else
-            ctor_empty();
-    }
-
-    HRD_ALWAYS_INLINE void ctor_move(hash_base&& r)
-    {
-        memcpy(this, &r, sizeof(hash_base));
-        if (HRD_LIKELY(r._capacity))
-            r.ctor_empty();
-        else
-            _elements = &_size; //0-hash indicates empty element - use this trick to prevent redundant "is empty" check in find-function
-    }
-
     HRD_ALWAYS_INLINE static size_t roundup(size_t sz) noexcept
     {
 #ifdef _WIN32
@@ -355,6 +325,104 @@ protected:
             iterator(typename base::storage_type* p, typename base::size_type cnt) : const_iterator(p, cnt) {}
         };
     };
+
+    template<typename this_type>
+    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r)
+    {
+        typedef typename this_type::storage_type StorageType;
+
+        size_t cnt = r._size;
+        if (HRD_LIKELY(cnt)) {
+            ctor_pow2(r._capacity + 1, sizeof(StorageType));
+            for (const StorageType* p = reinterpret_cast<StorageType*>(r._elements);; ++p)
+            {
+                if (p->mark >= ACTIVE_MARK) {
+                    insert_unique(*p, this_type::IS_TRIVIALLY_COPYABLE());
+                    if (!--cnt)
+                        break;
+                }
+            }
+        }
+        else
+            ctor_empty();
+    }
+
+    HRD_ALWAYS_INLINE void ctor_move(hash_base&& r)
+    {
+        memcpy(this, &r, sizeof(hash_base));
+        if (HRD_LIKELY(r._capacity))
+            r.ctor_empty();
+        else
+            _elements = &_size; //0-hash indicates empty element - use this trick to prevent redundant "is empty" check in find-function
+    }
+
+    template<typename this_type>
+    HRD_ALWAYS_INLINE void ctor_init_list(std::initializer_list<typename this_type::value_type> lst, this_type& ref)
+    {
+        ctor_pow2(roundup((lst.size() | 1) * 2), sizeof(typename this_type::storage_type));
+        ctor_insert_(lst.begin(), lst.end(), ref, std::true_type());
+    }
+
+    template<typename V, class this_type>
+    HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::true_type /*resized*/)
+    {
+        const uint32_t mark = make_mark(ref._hf(this_type::key_getter::get_key(val)));
+        for (size_t i = mark;; ++i)
+        {
+            i &= _capacity;
+            typename this_type::storage_type* r = reinterpret_cast<typename this_type::storage_type*>(_elements) + i;
+            uint32_t h = r->mark;
+            if (!h)
+            {
+                typedef typename this_type::value_type value_type;
+
+                new (&r->data) value_type(std::forward<V>(val));
+                r->mark = mark;
+                _size++;
+                return;
+            }
+            if (h == mark && HRD_LIKELY(ref._eql(this_type::key_getter::get_key(r->data), this_type::key_getter::get_key(val)))) //identical found
+                return;
+        }
+    }
+
+    template<typename V, class this_type>
+    HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::false_type /*not resized yet*/)
+    {
+        auto unused_cnt = _capacity - _size;
+        if (HRD_UNLIKELY(unused_cnt <= _size))
+            resize_next<this_type>();
+
+        ctor_insert_(std::forward<V>(val), ref, std::true_type());
+    }
+
+    template <typename Iter, class this_type, typename SIZE_PREPARED>
+    void ctor_insert_(Iter first, Iter last, this_type& ref, SIZE_PREPARED) {
+        for (; first != last; ++first)
+            ctor_insert_(*first, ref, SIZE_PREPARED());
+    }
+
+    template<typename Iter, class this_type>
+    HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, this_type& ref, std::random_access_iterator_tag)
+    {
+        ctor_pow2(roundup((std::distance(first, last) | 1) * 2), sizeof(typename this_type::storage_type));
+        ctor_insert_(first, last, ref, std::true_type());
+    }
+
+    template<typename Iter, class this_type, typename XXX>
+    HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, this_type& ref, XXX)
+    {
+        ctor_empty();
+        ctor_insert_(first, last, ref, std::false_type());
+    }
+
+    HRD_ALWAYS_INLINE void ctor_empty() noexcept
+    {
+        _size = 0;
+        _capacity = 0;
+        _elements = &_size; //0-hash indicates empty element - use this trick to prevent redundant "is empty" check in find-function
+        _erased = 0;
+    }
 
     HRD_ALWAYS_INLINE void ctor_pow2(size_t pow2, size_t element_size)
     {
@@ -467,45 +535,6 @@ protected:
         }
     }
 
-    template<typename V, class this_type>
-    HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::true_type /*resized*/)
-    {
-        const uint32_t mark = make_mark(ref._hf(this_type::key_getter::get_key(val)));
-        for (size_t i = mark;; ++i)
-        {
-            i &= _capacity;
-            typename this_type::storage_type* r = reinterpret_cast<typename this_type::storage_type*>(_elements) + i;
-            uint32_t h = r->mark;
-            if (!h)
-            {
-                typedef typename this_type::value_type value_type;
-
-                new (&r->data) value_type(std::forward<V>(val));
-                r->mark = mark;
-                _size++;
-                return;
-            }
-            if (h == mark && HRD_LIKELY(ref._eql(this_type::key_getter::get_key(r->data), this_type::key_getter::get_key(val)))) //identical found
-                return;
-        }
-    }
-
-    template<typename V, class this_type>
-    HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::false_type /*not resized yet*/)
-    {
-        auto unused_cnt = _capacity - _size;
-        if (HRD_UNLIKELY(unused_cnt <= _size))
-            resize_next<this_type>();
-
-        ctor_insert_(std::forward<V>(val), ref, std::true_type());
-    }
-
-    template <typename Iter, class this_type, typename SIZE_PREPARED>
-    void ctor_insert_(Iter first, Iter last, this_type& ref, SIZE_PREPARED) {
-        for (; first != last; ++first)
-            ctor_insert_(*first, ref, SIZE_PREPARED());
-    }
-
     template<typename key_type, class this_type>
     HRD_ALWAYS_INLINE typename this_type::storage_type* find_(const key_type& k, this_type& ref) const noexcept
     {
@@ -536,28 +565,6 @@ protected:
         else {
             clear<this_type>(std::true_type());
         }
-    }
-
-    template<typename Iter, class this_type>
-    HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, this_type& ref, std::random_access_iterator_tag)
-    {
-        ctor_pow2(roundup((std::distance(first, last) | 1) * 2), sizeof(typename this_type::storage_type));
-        ctor_insert_(first, last, ref, std::true_type());
-    }
-
-    template<typename Iter, class this_type, typename XXX>
-    HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, this_type& ref, XXX)
-    {
-        ctor_empty();
-        ctor_insert_(first, last, ref, std::false_type());
-    }
-
-    HRD_ALWAYS_INLINE void ctor_empty() noexcept
-    {
-        _size = 0;
-        _capacity = 0;
-        _elements = &_size; //0-hash indicates empty element - use this trick to prevent redundant "is empty" check in find-function
-        _erased = 0;
     }
 
     HRD_ALWAYS_INLINE void swap(hash_base& r)
@@ -733,8 +740,7 @@ public:
         _hf(hf),
         _eql(eql)
     {
-        ctor_pow2(roundup((lst.size() | 1) * 2), sizeof(storage_type));
-        ctor_insert_(lst.begin(), lst.end(), *this, std::true_type());
+        ctor_init_list(lst, *this);
     }
 
     ~hash_set() {
@@ -957,8 +963,7 @@ public:
         _hf(hf),
         _eql(eql)
     {
-        ctor_pow2(roundup((lst.size() | 1) * 2), sizeof(storage_type));
-        ctor_insert_(lst.begin(), lst.end(), *this, std::true_type());
+        ctor_init_list(lst, *this);
     }
 
     ~hash_map() {
