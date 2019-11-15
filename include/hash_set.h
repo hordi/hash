@@ -30,7 +30,7 @@ public:
     template<typename T>
     struct hash_ : public std::hash<T> {
         HRD_ALWAYS_INLINE size_t operator()(const T& val) const noexcept {
-            return hash_base::hash(val);
+            return hash_base::hash_1<sizeof(T)>(&val);
         }
     };
 
@@ -71,17 +71,7 @@ protected:
         return hash_base::fnv_1a((const char*)ptr, SIZE);
     }
 
-    template<typename T>
-    static uint32_t hash_1(const T& v) noexcept {
-        return hash_1<sizeof(T)>(&v);
-    }
-
-    template<typename T>
-    static uint32_t hash(const T& v) noexcept {
-        return hash_1<sizeof(T)>(&v);
-    }
-
-    static HRD_ALWAYS_INLINE uint32_t fnv_1a(const char* key, size_t len, uint32_t hash32 = OFFSET_BASIS) noexcept
+    constexpr static HRD_ALWAYS_INLINE uint32_t fnv_1a(const char* key, size_t len, uint32_t hash32 = OFFSET_BASIS) noexcept
     {
         const uint32_t PRIME = 1607;
 
