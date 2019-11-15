@@ -64,7 +64,7 @@ protected:
     };
 #pragma pack(pop)
 
-    static const uint32_t OFFSET_BASIS = 2166136261;
+    constexpr static const uint32_t OFFSET_BASIS = 2166136261;
 
     template<size_t SIZE>
     static uint32_t hash_1(const void* ptr) noexcept {
