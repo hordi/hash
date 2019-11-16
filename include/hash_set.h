@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <intrin.h>
 
-//version 1.2.4
+//version 1.2.5
 
 #ifdef _WIN32
 #  include <pmmintrin.h>
@@ -302,7 +302,7 @@ protected:
         private:
             friend base;
             friend hash_base;
-            iterator(typename base::storage_type* p, typename base::size_type cnt) : const_iterator(p, cnt) {}
+            iterator(typename base::storage_type* p, typename base::size_type cnt = 0) : const_iterator(p, cnt) {}
         };
     };
 
@@ -351,7 +351,7 @@ protected:
         {
             i &= _capacity;
             typename this_type::storage_type* r = reinterpret_cast<typename this_type::storage_type*>(_elements) + i;
-            uint32_t h = r->mark;
+            auto h = r->mark;
             if (!h)
             {
                 typedef typename this_type::value_type value_type;
@@ -466,48 +466,41 @@ protected:
     template<typename V, class this_type>
     HRD_ALWAYS_INLINE std::pair<typename this_type::iterator, bool> insert_(V&& val, this_type& ref)
     {
-        const uint32_t mark = make_mark(ref._hf(this_type::key_getter::get_key(val)));
-        size_t i = mark;
-
         size_t used = _erased + _size;
         if (HRD_UNLIKELY(_capacity - used <= used))
             resize_pow2<this_type>(2 * (_capacity + 1));
 
-        std::pair<typename this_type::iterator, bool> ret;
         typename this_type::storage_type* empty_spot = nullptr;
         uint32_t deleted_mark = DELETED_MARK;
+        const uint32_t mark = make_mark(ref._hf(this_type::key_getter::get_key(val)));
 
-        for (;; ++i)
+        for (size_t i = mark;; ++i)
         {
             i &= _capacity;
             typename this_type::storage_type* r = reinterpret_cast<typename this_type::storage_type*>(_elements) + i;
-            uint32_t h = r->mark;
+            auto h = r->mark;
             if (!h)
             {
                 if (HRD_UNLIKELY(empty_spot)) r = empty_spot;
 
                 typedef typename this_type::value_type value_type;
 
-                ret.first._ptr = r;
-                ret.second = true;
+                std::pair<typename this_type::iterator, bool> ret(r, true);
                 new ((void*)&r->data) value_type(std::forward<V>(val));
                 r->mark = mark;
                 _size++;
+                if (HRD_UNLIKELY(empty_spot)) _erased--;
                 return ret;
             }
             if (h == mark)
             {
                 if (HRD_LIKELY(ref._eql(this_type::key_getter::get_key(r->data), this_type::key_getter::get_key(val)))) //identical found
-                {
-                    ret.first._ptr = r;
-                    return ret;
-                }
+                    return std::pair<typename this_type::iterator, bool>(r, false);
             }
             else if (h == deleted_mark)
             {
                 empty_spot = r;
                 deleted_mark = 0; //prevent additional empty_spot == null_ptr comparison
-                _erased--;
             }
         }
     }
@@ -520,7 +513,7 @@ protected:
         {
             i &= _capacity;
             auto& r = reinterpret_cast<typename this_type::storage_type*>(_elements)[i];
-            uint32_t h = r.mark;
+            auto h = r.mark;
             if (HRD_LIKELY(h == mark))
             {
                 if (HRD_LIKELY(ref._eql(this_type::key_getter::get_key(r.data), k))) //identical found
@@ -605,7 +598,6 @@ HRD_ALWAYS_INLINE uint32_t hash_base::hash_1<8>(const void* ptr) noexcept {
     uint64_t h;
     uint64_t l = _umul128(*(uint64_t*)ptr, 0xde5fb9d2630458e9ull, &h);
     return static_cast<uint32_t>(h + l);
-
     /*
         uint32_t* key = (uint32_t*)ptr;
         uint32_t hash32 = (((OFFSET_BASIS ^ key[0]) * 1607) ^ key[1]) * 1607;
@@ -1105,46 +1097,39 @@ private:
     template<typename K, typename... Args>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace_(K&& k, Args&&... args)
     {
-        const uint32_t mark = make_mark(_hf(k));
-        size_t i = mark;
-
         size_t used = _erased + _size;
         if (HRD_UNLIKELY(_capacity - used <= used))
             resize_pow2<this_type>(2 * (_capacity + 1));
 
-        std::pair<iterator, bool> ret;
         storage_type* empty_spot = nullptr;
         uint32_t deleted_mark = DELETED_MARK;
+        const uint32_t mark = make_mark(_hf(k));
 
-        for (;; ++i)
+        for (size_t i = mark;; ++i)
         {
             i &= _capacity;
             storage_type* r = reinterpret_cast<storage_type*>(_elements) + i;
-            uint32_t h = r->mark;
+            auto h = r->mark;
             if (!h)
             {
                 if (HRD_UNLIKELY(empty_spot)) r = empty_spot;
 
-                ret.first._ptr = r;
-                ret.second = true;
+                std::pair<iterator, bool> ret(r, true);
                 new ((void*)&r->data) value_type(std::piecewise_construct, std::forward_as_tuple(std::forward<K>(k)), std::forward_as_tuple(std::forward<Args>(args)...));
                 r->mark = mark;
                 _size++;
+                if (HRD_UNLIKELY(empty_spot)) _erased--;
                 return ret;
             }
             if (h == mark)
             {
                 if (HRD_LIKELY(_eql(r->data.first, k))) //identical found
-                {
-                    ret.first._ptr = r;
-                    return ret;
-                }
+                    return std::pair<iterator, bool>(r, false);
             }
             else if (h == deleted_mark)
             {
                 empty_spot = r;
                 deleted_mark = 0; //optimization to prevent additional first_found == null_ptr comparison
-                _erased--;
             }
         }
     }
@@ -1152,21 +1137,19 @@ private:
     template<typename V>
     HRD_ALWAYS_INLINE mapped_type& find_insert(V&& k)
     {
-        const uint32_t mark = make_mark(_hf(k));
-        size_t i = mark;
-
         size_t used = _erased + _size;
         if (HRD_UNLIKELY(_capacity - used <= used))
             resize_pow2<this_type>(2 * (_capacity + 1));
 
         storage_type* empty_spot = nullptr;
         uint32_t deleted_mark = DELETED_MARK;
+        const uint32_t mark = make_mark(_hf(k));
 
-        for (;; ++i)
+        for (size_t i = mark;; ++i)
         {
             i &= _capacity;
             storage_type* r = reinterpret_cast<storage_type*>(_elements) + i;
-            uint32_t h = r->mark;
+            auto h = r->mark;
             if (!h)
             {
                 if (HRD_UNLIKELY(empty_spot)) r = empty_spot;
@@ -1174,6 +1157,7 @@ private:
                 new ((void*)&r->data) value_type(std::forward<V>(k), mapped_type());
                 r->mark = mark;
                 _size++;
+                if (HRD_UNLIKELY(empty_spot)) _erased--;
                 return r->data.second;
             }
             if (h == mark)
@@ -1185,7 +1169,6 @@ private:
             {
                 empty_spot = r;
                 deleted_mark = 0; //optimization to prevent additional empty_spot == null_ptr comparison
-                _erased--;
             }
         }
     }
