@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <intrin.h>
 
-//version 1.2.3
+//version 1.2.4
 
 #ifdef _WIN32
 #  include <pmmintrin.h>
@@ -119,7 +119,7 @@ protected:
             i &= _capacity;
             auto& r = reinterpret_cast<storage_type*>(_elements)[i];
             if (!r.mark) {
-                new (&r) storage_type(std::forward<V>(st));
+                new ((void*)&r) storage_type(std::forward<V>(st));
                 _size++;
                 return;
             }
@@ -193,16 +193,6 @@ protected:
     template<typename this_type>
     HRD_ALWAYS_INLINE void resize_pow2(size_t pow2) {
         resize_pow2<this_type>(pow2, this_type::IS_TRIVIALLY_COPYABLE());
-    }
-
-    template<typename this_type>
-    HRD_ALWAYS_INLINE void resize_next()
-    {
-        size_type sz = (_capacity + 1) * 2;
-        if (HRD_LIKELY(sz > _capacity))
-            resize_pow2<this_type>(sz, this_type::IS_TRIVIALLY_COPYABLE());
-        else
-            throw_length_error();
     }
 
     HRD_ALWAYS_INLINE static size_t roundup(size_t sz) noexcept
@@ -366,7 +356,7 @@ protected:
             {
                 typedef typename this_type::value_type value_type;
 
-                new (&r->data) value_type(std::forward<V>(val));
+                new ((void*)&r->data) value_type(std::forward<V>(val));
                 r->mark = mark;
                 _size++;
                 return;
@@ -379,9 +369,8 @@ protected:
     template<typename V, class this_type>
     HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::false_type /*not resized yet*/)
     {
-        auto unused_cnt = _capacity - _size;
-        if (HRD_UNLIKELY(unused_cnt <= _size))
-            resize_next<this_type>();
+        if (HRD_UNLIKELY((_capacity - _size) <= _size))
+            resize_pow2<this_type>(2 * (_capacity + 1));
 
         ctor_insert_(std::forward<V>(val), ref, std::true_type());
     }
@@ -480,11 +469,9 @@ protected:
         const uint32_t mark = make_mark(ref._hf(this_type::key_getter::get_key(val)));
         size_t i = mark;
 
-        auto unused_cnt = _capacity - _size;
-        if (HRD_UNLIKELY(unused_cnt <= _size))
-            resize_next<this_type>();
-        else if (HRD_UNLIKELY(_erased > (unused_cnt / 2)))
-            resize_pow2<this_type>(_capacity + 1);
+        size_t used = _erased + _size;
+        if (HRD_UNLIKELY(_capacity - used <= used))
+            resize_pow2<this_type>(2 * (_capacity + 1));
 
         std::pair<typename this_type::iterator, bool> ret;
         typename this_type::storage_type* empty_spot = nullptr;
@@ -503,7 +490,7 @@ protected:
 
                 ret.first._ptr = r;
                 ret.second = true;
-                new (&r->data) value_type(std::forward<V>(val));
+                new ((void*)&r->data) value_type(std::forward<V>(val));
                 r->mark = mark;
                 _size++;
                 return ret;
@@ -1121,11 +1108,9 @@ private:
         const uint32_t mark = make_mark(_hf(k));
         size_t i = mark;
 
-        auto unused_cnt = _capacity - _size;
-        if (HRD_UNLIKELY(unused_cnt <= _size))
-            resize_next<this_type>();
-        else if (HRD_UNLIKELY(_erased > (unused_cnt / 2)))
-            resize_pow2<this_type>(_capacity + 1);
+        size_t used = _erased + _size;
+        if (HRD_UNLIKELY(_capacity - used <= used))
+            resize_pow2<this_type>(2 * (_capacity + 1));
 
         std::pair<iterator, bool> ret;
         storage_type* empty_spot = nullptr;
@@ -1142,7 +1127,7 @@ private:
 
                 ret.first._ptr = r;
                 ret.second = true;
-                new (&r->data) value_type(std::piecewise_construct, std::forward_as_tuple(std::forward<K>(k)), std::forward_as_tuple(std::forward<Args>(args)...));
+                new ((void*)&r->data) value_type(std::piecewise_construct, std::forward_as_tuple(std::forward<K>(k)), std::forward_as_tuple(std::forward<Args>(args)...));
                 r->mark = mark;
                 _size++;
                 return ret;
@@ -1170,11 +1155,9 @@ private:
         const uint32_t mark = make_mark(_hf(k));
         size_t i = mark;
 
-        auto unused_cnt = _capacity - _size;
-        if (HRD_UNLIKELY(unused_cnt <= _size))
-            resize_next<this_type>();
-        else if (HRD_UNLIKELY(_erased > (unused_cnt / 2)))
-            resize_pow2<this_type>(_capacity + 1);
+        size_t used = _erased + _size;
+        if (HRD_UNLIKELY(_capacity - used <= used))
+            resize_pow2<this_type>(2 * (_capacity + 1));
 
         storage_type* empty_spot = nullptr;
         uint32_t deleted_mark = DELETED_MARK;
@@ -1188,7 +1171,7 @@ private:
             {
                 if (HRD_UNLIKELY(empty_spot)) r = empty_spot;
 
-                new (&r->data) value_type(std::forward<V>(k), mapped_type());
+                new ((void*)&r->data) value_type(std::forward<V>(k), mapped_type());
                 r->mark = mark;
                 _size++;
                 return r->data.second;
