@@ -96,13 +96,13 @@ protected:
     template<class storage_type>
     HRD_ALWAYS_INLINE void insert_unique(const storage_type& st, std::true_type /*trivial data*/)
     {
+        _size++;
         for (size_t i = st.mark;; ++i)
         {
             i &= _capacity;
             auto& r = reinterpret_cast<storage_type*>(_elements)[i];
             if (!r.mark) {
                 memcpy(&r, &st, sizeof(st));
-                _size++;
                 return;
             }
         }
@@ -277,7 +277,7 @@ protected:
         protected:
             friend base;
             friend hash_base;
-            const_iterator(typename base::storage_type* p, typename base::size_type cnt) noexcept : _ptr(p), _cnt(cnt) {}
+            const_iterator(typename base::storage_type* p, typename base::size_type cnt = 0) noexcept : _ptr(p), _cnt(cnt) {}
 
             typename base::storage_type* _ptr;
             typename base::size_type _cnt;
@@ -407,7 +407,7 @@ protected:
     {
         _size = 0;
         _capacity = pow2 - 1;
-        _elements = calloc(pow2, element_size); //pos2-- for performance in lookup-function
+        _elements = calloc(pow2, element_size);
         _erased = 0;
         if (HRD_UNLIKELY(!_elements))
             throw_bad_alloc();
@@ -1129,7 +1129,7 @@ private:
             else if (h == deleted_mark)
             {
                 empty_spot = r;
-                deleted_mark = 0; //optimization to prevent additional first_found == null_ptr comparison
+                deleted_mark = 0; //prevent additional empty_spot == null_ptr comparison
             }
         }
     }
@@ -1168,7 +1168,7 @@ private:
             else if (h == deleted_mark)
             {
                 empty_spot = r;
-                deleted_mark = 0; //optimization to prevent additional empty_spot == null_ptr comparison
+                deleted_mark = 0; //prevent additional empty_spot == null_ptr comparison
             }
         }
     }
