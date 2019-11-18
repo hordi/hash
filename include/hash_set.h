@@ -97,10 +97,10 @@ protected:
     HRD_ALWAYS_INLINE void insert_unique(const storage_type& st, std::true_type /*trivial data*/)
     {
         _size++;
-        for (size_t i = st.mark;; ++i)
+        for (size_t i = st.mark;;)
         {
             i &= _capacity;
-            auto& r = reinterpret_cast<storage_type*>(_elements)[i];
+            auto& r = reinterpret_cast<storage_type*>(_elements)[i++];
             if (!r.mark) {
                 memcpy(&r, &st, sizeof(st));
                 return;
@@ -114,10 +114,10 @@ protected:
     {
         typedef std::remove_reference<V>::type storage_type;
 
-        for (size_t i = st.mark;; ++i)
+        for (size_t i = st.mark;;)
         {
             i &= _capacity;
-            auto& r = reinterpret_cast<storage_type*>(_elements)[i];
+            auto& r = reinterpret_cast<storage_type*>(_elements)[i++];
             if (!r.mark) {
                 new ((void*)&r) storage_type(std::forward<V>(st));
                 _size++;
@@ -139,10 +139,10 @@ protected:
             {
                 if (HRD_UNLIKELY(p->mark >= ACTIVE_MARK))
                 {
-                    for (size_t i = p->mark;; ++i)
+                    for (size_t i = p->mark;;)
                     {
                         i &= pow2;
-                        auto& r = elements[i];
+                        auto& r = elements[i++];
                         if (HRD_LIKELY(!r.mark)) {
                             memcpy(&r, p, sizeof(typename this_type::storage_type));
                             break;
@@ -347,10 +347,10 @@ protected:
     HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::true_type /*resized*/)
     {
         const uint32_t mark = make_mark(ref._hf(this_type::key_getter::get_key(val)));
-        for (size_t i = mark;; ++i)
+        for (size_t i = mark;;)
         {
             i &= _capacity;
-            typename this_type::storage_type* r = reinterpret_cast<typename this_type::storage_type*>(_elements) + i;
+            typename this_type::storage_type* r = reinterpret_cast<typename this_type::storage_type*>(_elements) + i++;
             auto h = r->mark;
             if (!h)
             {
@@ -474,10 +474,10 @@ protected:
         uint32_t deleted_mark = DELETED_MARK;
         const uint32_t mark = make_mark(ref._hf(this_type::key_getter::get_key(val)));
 
-        for (size_t i = mark;; ++i)
+        for (size_t i = mark;;)
         {
             i &= _capacity;
-            typename this_type::storage_type* r = reinterpret_cast<typename this_type::storage_type*>(_elements) + i;
+            typename this_type::storage_type* r = reinterpret_cast<typename this_type::storage_type*>(_elements) + i++;
             auto h = r->mark;
             if (!h)
             {
@@ -509,10 +509,10 @@ protected:
     HRD_ALWAYS_INLINE typename this_type::storage_type* find_(const key_type& k, this_type& ref) const noexcept
     {
         const uint32_t mark = make_mark(ref._hf(k));
-        for (size_t i = mark;; ++i)
+        for (size_t i = mark;;)
         {
             i &= _capacity;
-            auto& r = reinterpret_cast<typename this_type::storage_type*>(_elements)[i];
+            auto& r = reinterpret_cast<typename this_type::storage_type*>(_elements)[i++];
             auto h = r.mark;
             if (HRD_LIKELY(h == mark))
             {
@@ -1105,10 +1105,10 @@ private:
         uint32_t deleted_mark = DELETED_MARK;
         const uint32_t mark = make_mark(_hf(k));
 
-        for (size_t i = mark;; ++i)
+        for (size_t i = mark;;)
         {
             i &= _capacity;
-            storage_type* r = reinterpret_cast<storage_type*>(_elements) + i;
+            storage_type* r = reinterpret_cast<storage_type*>(_elements) + i++;
             auto h = r->mark;
             if (!h)
             {
@@ -1145,10 +1145,10 @@ private:
         uint32_t deleted_mark = DELETED_MARK;
         const uint32_t mark = make_mark(_hf(k));
 
-        for (size_t i = mark;; ++i)
+        for (size_t i = mark;;)
         {
             i &= _capacity;
-            storage_type* r = reinterpret_cast<storage_type*>(_elements) + i;
+            storage_type* r = reinterpret_cast<storage_type*>(_elements) + i++;
             auto h = r->mark;
             if (!h)
             {
