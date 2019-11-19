@@ -219,7 +219,7 @@ protected:
 #else
     __attribute__((noinline, noreturn))
 #endif
-        static void throw_bad_alloc() {
+    static void throw_bad_alloc() {
         throw std::bad_alloc();
     }
 
@@ -228,7 +228,7 @@ protected:
 #else
     __attribute__((noinline, noreturn))
 #endif
-        static void throw_length_error() {
+    static void throw_length_error() {
         throw std::length_error("size exceeded");
     }
 
@@ -571,9 +571,8 @@ protected:
         return static_cast<uint32_t>(h + l);
     }
 #else
-    typedef unsigned __int128 uint128_t;
-
     HRD_ALWAYS_INLINE static uint64_t umul128(uint64_t a, uint64_t b) noexcept {
+        typedef unsigned __int128 uint128_t;
         auto result = static_cast<uint128_t>(a) * static_cast<uint128_t>(b);
         return static_cast<uint64_t>(result) + static_cast<uint64_t>(result >> 64U);
     }
