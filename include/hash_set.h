@@ -568,7 +568,7 @@ protected:
 #ifdef _WIN32
     HRD_ALWAYS_INLINE static uint64_t umul128(uint64_t a, uint64_t b) noexcept {
         uint64_t h, l = _umul128(a, b, &h);
-        return static_cast<uint32_t>(h + l);
+        return h + l;
     }
 #else
     HRD_ALWAYS_INLINE static uint64_t umul128(uint64_t a, uint64_t b) noexcept {
