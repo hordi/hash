@@ -336,12 +336,14 @@ protected:
             _elements = &_size; //0-hash indicates empty element - use this trick to prevent redundant "is empty" check in find-function
     }
 
+#if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     template<typename this_type>
     HRD_ALWAYS_INLINE void ctor_init_list(std::initializer_list<typename this_type::value_type> lst, this_type& ref)
     {
         ctor_pow2(roundup((lst.size() | 1) * 2), sizeof(typename this_type::storage_type));
         ctor_insert_(lst.begin(), lst.end(), ref, std::true_type());
     }
+#endif
 
     template<typename V, class this_type>
     HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::true_type /*resized*/)
@@ -719,12 +721,14 @@ public:
         ctor_iters(first, last, *this, Iter::iterator_category());
     }
 
+#if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     hash_set(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
         _hf(hf),
         _eql(eql)
     {
         ctor_init_list(lst, *this);
     }
+#endif
 
     ~hash_set() {
         clear();
@@ -793,12 +797,14 @@ public:
         return insert_(std::forward<P>(val), const_cast<this_type&>(*this));
     }
 
+#if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     /*! Can invalidate iterators. */
     void insert(std::initializer_list<value_type> lst)
     {
         for (auto i = lst.begin(), e = lst.end(); i != e; ++i)
             insert_(*i, *this);
     }
+#endif
 
     /*! Can invalidate iterators. */
     template<class K>
@@ -946,12 +952,14 @@ public:
         ctor_iters(first, last, *this, Iter::iterator_category());
     }
 
+#if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     hash_map(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
         _hf(hf),
         _eql(eql)
     {
         ctor_init_list(lst, *this);
     }
+#endif
 
     ~hash_map() {
         clear();
