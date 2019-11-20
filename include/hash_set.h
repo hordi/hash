@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string.h> //memcpy
 
-//version 1.2.5
+//version 1.2.6
 
 #ifdef _WIN32
 #  include <pmmintrin.h>
@@ -73,7 +73,7 @@ protected:
 
     constexpr static HRD_ALWAYS_INLINE uint32_t fnv_1a(const char* key, size_t len, uint32_t hash32 = OFFSET_BASIS) noexcept
     {
-        const uint32_t PRIME = 1607;
+        constexpr const uint32_t PRIME = 1607;
 
         for (size_t cnt = len / sizeof(uint32_t); cnt--; key += sizeof(uint32_t))
             hash32 = (hash32 ^ (*(uint32_t*)key)) * PRIME;
@@ -219,7 +219,7 @@ protected:
 #else
     __attribute__((noinline, noreturn))
 #endif
-    static void throw_bad_alloc() {
+        static void throw_bad_alloc() {
         throw std::bad_alloc();
     }
 
@@ -228,7 +228,7 @@ protected:
 #else
     __attribute__((noinline, noreturn))
 #endif
-    static void throw_length_error() {
+        static void throw_length_error() {
         throw std::length_error("size exceeded");
     }
 
@@ -567,12 +567,13 @@ protected:
 
 #ifdef _WIN32
     HRD_ALWAYS_INLINE static uint64_t umul128(uint64_t a, uint64_t b) noexcept {
-        uint64_t h, l = _umul128(a, b, &h);
-        return h + l;
+        uint64_t l = _umul128(a, b, &a);
+        return l + a;
     }
 #else
     HRD_ALWAYS_INLINE static uint64_t umul128(uint64_t a, uint64_t b) noexcept {
         typedef unsigned __int128 uint128_t;
+
         auto result = static_cast<uint128_t>(a) * static_cast<uint128_t>(b);
         return static_cast<uint64_t>(result) + static_cast<uint64_t>(result >> 64U);
     }
@@ -669,8 +670,11 @@ private:
     friend iterator_base<this_type>;
     friend hash_base;
     typedef StorageItem<key_type> storage_type;
+#if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     typedef std::is_trivially_copyable<key_type> IS_TRIVIALLY_COPYABLE;
-
+#else
+    typedef std::is_pod<key_type> IS_TRIVIALLY_COPYABLE;
+#endif
     struct key_getter {
         HRD_ALWAYS_INLINE static const key_type& get_key(const value_type& r) noexcept {
             return r;
@@ -892,7 +896,11 @@ private:
     friend iterator_base<this_type>;
     friend hash_base;
     typedef StorageItem<value_type> storage_type;
+#if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     typedef std::integral_constant<bool, std::is_trivially_copyable<key_type>::value && std::is_trivially_copyable<mapped_type>::value> IS_TRIVIALLY_COPYABLE;
+#else
+    typedef std::integral_constant<bool, std::is_pod<key_type>::value && std::is_pod<mapped_type>::value> IS_TRIVIALLY_COPYABLE;
+#endif
 
     struct key_getter {
         HRD_ALWAYS_INLINE static const key_type& get_key(const value_type& r) noexcept {
@@ -1011,6 +1019,7 @@ public:
         return insert_(std::forward<P>(val), const_cast<this_type&>(*this));
     }
 
+#if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     /*! Can invalidate iterators. */
     void insert(std::initializer_list<value_type> lst)
     {
@@ -1029,6 +1038,19 @@ public:
     HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace(K&& key, Args&&... args) {
         return emplace_(std::forward<K>(key), std::forward<Args>(args)...);
     }
+#else
+    /*! Can invalidate iterators. */
+    template<class Args>
+    HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace(const Key& key, Args&& args) {
+        return emplace_(key, std::forward<Args>(args));
+    }
+
+    /*! Can invalidate iterators. */
+    template<class K, class Args>
+    HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace(K&& key, Args&& args) {
+        return emplace_(std::forward<K>(key), std::forward<Args>(args));
+    }
+#endif //C++-11 support
 
     HRD_ALWAYS_INLINE iterator find(const key_type& k) noexcept {
         return iterator(find_(k, *this), 0);
@@ -1104,8 +1126,13 @@ private:
         ctor_pow2(pow2, sizeof(storage_type));
     }
 
+#if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     template<typename K, typename... Args>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace_(K&& k, Args&&... args)
+#else
+    template<typename K, typename Args>
+    HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace_(K&& k, Args&& args)
+#endif //C++-11 support
     {
         size_t used = _erased + _size;
         if (HRD_UNLIKELY(_capacity - used <= used))
@@ -1125,7 +1152,11 @@ private:
                 if (HRD_UNLIKELY(!!empty_spot)) r = empty_spot;
 
                 std::pair<iterator, bool> ret(r, true);
+#if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
                 new ((void*)&r->data) value_type(std::piecewise_construct, std::forward_as_tuple(std::forward<K>(k)), std::forward_as_tuple(std::forward<Args>(args)...));
+#else
+                new ((void*)&r->data) value_type(std::forward<K>(k), std::forward<Args>(args));
+#endif //C++-11 support
                 r->mark = mark;
                 _size++;
                 if (HRD_UNLIKELY(!!empty_spot)) _erased--;
