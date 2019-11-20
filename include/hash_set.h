@@ -8,7 +8,7 @@
 
 //version 1.2.6
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 #  include <pmmintrin.h>
 #  define HRD_ALWAYS_INLINE __forceinline
 #  define HRD_LIKELY(condition) condition
@@ -197,7 +197,7 @@ protected:
 
     HRD_ALWAYS_INLINE static size_t roundup(size_t sz) noexcept
     {
-#ifdef _WIN32
+#ifdef _MSC_VER
         unsigned long idx;
 #  if defined(_WIN64) || defined(__LP64__)
         _BitScanReverse64(&idx, sz - 1);
@@ -214,21 +214,21 @@ protected:
         return size_t(1) << (idx + 1);
     }
 
-#ifdef _WIN32
+#ifdef _MSC_VER
     __declspec(noreturn, noinline)
 #else
     __attribute__((noinline, noreturn))
 #endif
-        static void throw_bad_alloc() {
+    static void throw_bad_alloc() {
         throw std::bad_alloc();
     }
 
-#ifdef _WIN32
+#ifdef _MSC_VER
     __declspec(noreturn, noinline)
 #else
     __attribute__((noinline, noreturn))
 #endif
-        static void throw_length_error() {
+    static void throw_length_error() {
         throw std::length_error("size exceeded");
     }
 
@@ -565,7 +565,7 @@ protected:
             r._elements = &r._size;
     }
 
-#ifdef _WIN32
+#ifdef _MSC_VER
     HRD_ALWAYS_INLINE static uint64_t umul128(uint64_t a, uint64_t b) noexcept {
         uint64_t l = _umul128(a, b, &a);
         return l + a;
