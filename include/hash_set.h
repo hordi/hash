@@ -443,8 +443,6 @@ protected:
     template<class this_type>
     HRD_ALWAYS_INLINE void clear(std::false_type) noexcept
     {
-        if (!_capacity)
-            return;
         if (auto cnt = _size)
         {
             typedef typename this_type::storage_type storage_type;
@@ -460,6 +458,8 @@ protected:
                 }
             }
         }
+        else if (!_capacity)
+            return;
 
         free(_elements);
         ctor_empty();
