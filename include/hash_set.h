@@ -569,8 +569,8 @@ protected:
 
 #ifdef _MSC_VER
     HRD_ALWAYS_INLINE static uint64_t umul128(uint64_t a, uint64_t b) noexcept {
-        uint64_t l = _umul128(a, b, &a);
-        return l + a;
+        uint64_t h, l = _umul128(a, b, &h);
+        return l + h;
     }
 #else
     HRD_ALWAYS_INLINE static uint64_t umul128(uint64_t a, uint64_t b) noexcept {
