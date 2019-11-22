@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string.h> //memcpy
 
-//version 1.2.7
+//version 1.2.8
 
 #ifdef _MSC_VER
 #  include <pmmintrin.h>
@@ -248,13 +248,11 @@ protected:
 
             HRD_ALWAYS_INLINE const_iterator& operator++() noexcept
             {
-                typename base::storage_type* p = _ptr;
                 if (_cnt)
                 {
                     _cnt--;
-                    while ((++p)->mark < base::ACTIVE_MARK)
+                    while ((++_ptr)->mark < base::ACTIVE_MARK)
                         ;
-                    _ptr = p;
                     return *this;
                 }
                 _ptr = nullptr;
@@ -526,6 +524,50 @@ protected:
         }
     }
 
+    template <class this_type>
+    HRD_ALWAYS_INLINE typename this_type::iterator erase_(typename this_type::const_iterator& it) noexcept
+    {
+        typename this_type::iterator& ret = (typename this_type::iterator&)it;
+        if (HRD_LIKELY(!!it._ptr)) //valid
+        {
+            deleteElement<this_type::storage_type, this_type::value_type>(it._ptr);
+
+            if (HRD_UNLIKELY(ret._cnt)) {
+                for (--ret._cnt;;) {
+                    if (HRD_UNLIKELY((++ret._ptr)->mark >= ACTIVE_MARK))
+                        return ret;
+                }
+            }
+            it._ptr = nullptr;
+        }
+        return ret;
+    }
+
+    template <class this_type>
+    HRD_ALWAYS_INLINE size_type erase_(const typename this_type::key_type& k, this_type& ref) noexcept
+    {
+        auto ptr = find_(k, ref);
+        if (HRD_LIKELY(!!ptr)) {
+            deleteElement<this_type::storage_type, this_type::value_type>(ptr);
+            return 1;
+        }
+        return 0;
+    }
+
+    template <class this_type>
+    HRD_ALWAYS_INLINE typename this_type::iterator begin_() noexcept
+    {
+        auto pm = reinterpret_cast<typename this_type::storage_type*>(_elements);
+
+        if (auto cnt = _size) {
+            for (--cnt;; ++pm) {
+                if (HRD_UNLIKELY(pm->mark >= ACTIVE_MARK))
+                    return typename this_type::iterator(pm, cnt);
+            }
+        }
+        return typename this_type::iterator();
+    }
+
     template<class this_type>
     void shrink_to_fit()
     {
@@ -734,18 +776,8 @@ public:
         clear();
     }
 
-    iterator begin() noexcept
-    {
-        auto pm = reinterpret_cast<storage_type*>(_elements);
-
-        if (auto cnt = _size) {
-            --cnt;
-            for (;; ++pm) {
-                if (HRD_UNLIKELY(pm->mark >= ACTIVE_MARK))
-                    return iterator(pm, cnt);
-            }
-        }
-        return iterator();
+    iterator begin() noexcept {
+        return begin_<this_type>();
     }
 
     const_iterator begin() const noexcept {
@@ -828,36 +860,16 @@ public:
     * \params it - Iterator pointing to a single element to be removed
     * \return an iterator pointing to the position immediately following of the element erased
     */
-    inline iterator erase(const_iterator it) noexcept
-    {
-        auto ptr = it._ptr;
-        if (HRD_LIKELY(!!ptr)) //valid
-        {
-            auto cnt = it._cnt;
-            deleteElement<storage_type, value_type>(it._ptr);
-
-            if (HRD_UNLIKELY(cnt--)) {
-                for (;;) {
-                    if (HRD_UNLIKELY((++ptr)->mark >= ACTIVE_MARK))
-                        return iterator(ptr, cnt);
-                }
-            }
-        }
-        return iterator();
+    inline iterator erase(const_iterator it) noexcept {
+        return erase_<this_type>(it);
     }
 
     /*! Can invalidate iterators.
     * \params k - Key of the element to be erased
     * \return 1 - if element erased and zero otherwise
     */
-    inline size_type erase(const key_type& k) noexcept
-    {
-        auto ptr = find_(k, *this);
-        if (HRD_LIKELY(!!ptr)) {
-            deleteElement<storage_type, value_type>(ptr);
-            return 1;
-        }
-        return 0;
+    inline size_type erase(const key_type& k) noexcept {
+        return erase_(k, *this);
     }
 
     HRD_ALWAYS_INLINE void shrink_to_fit() {
@@ -965,18 +977,8 @@ public:
         clear();
     }
 
-    iterator begin() noexcept
-    {
-        auto pm = reinterpret_cast<storage_type*>(_elements);
-        auto cnt = _size;
-        if (HRD_LIKELY(cnt)) {
-            --cnt;
-            for (;; ++pm) {
-                if (HRD_UNLIKELY(pm->mark >= ACTIVE_MARK))
-                    return iterator(pm, cnt);
-            }
-        }
-        return iterator();
+    iterator begin() noexcept {
+        return begin_<this_type>();
     }
 
     const_iterator begin() const noexcept {
@@ -1076,35 +1078,16 @@ public:
     * \params it - Iterator pointing to a single element to be removed
     * \return return an iterator pointing to the position immediately following of the element erased
     */
-    inline iterator erase(const_iterator it) noexcept
-    {
-        if (auto ptr = it._ptr) //valid
-        {
-            auto cnt = it._cnt;
-            deleteElement<storage_type, value_type>(it._ptr);
-
-            if (HRD_UNLIKELY(cnt--)) {
-                for (;;) {
-                    if (HRD_UNLIKELY((++ptr)->mark >= ACTIVE_MARK))
-                        return iterator(ptr, cnt);
-                }
-            }
-        }
-        return iterator();
+    inline iterator erase(const_iterator it) noexcept {
+        return erase_<this_type>(it);
     }
 
     /*! Can invalidate iterators.
     * \params k - Key of the element to be erased
     * \return 1 - if element erased and zero otherwise
     */
-    inline size_type erase(const key_type& k) noexcept
-    {
-        auto ptr = find_(k, *this);
-        if (HRD_LIKELY(!!ptr)) {
-            deleteElement<storage_type, value_type>(ptr);
-            return 1;
-        }
-        return 0;
+    inline size_type erase(const key_type& k) noexcept {
+        return erase_(k, *this);
     }
 
     HRD_ALWAYS_INLINE void shrink_to_fit() {
@@ -1186,7 +1169,7 @@ private:
     template<typename V>
     HRD_ALWAYS_INLINE mapped_type& find_insert(V&& k)
     {
-        size_t used = _erased + _size;
+        size_type used = _erased + _size;
         if (HRD_UNLIKELY(_capacity - used <= used))
             resize_pow2<this_type>(2 * (_capacity + 1));
 
