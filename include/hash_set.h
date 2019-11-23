@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string.h> //memcpy
 
-//version 1.2.9
+//version 1.2.10
 
 #ifdef _MSC_VER
 #  include <pmmintrin.h>
@@ -205,10 +205,13 @@ protected:
         _BitScanReverse(&idx, sz - 1);
 #  endif
 #else
+        size_t idx;
 #  ifdef __LP64__
-        int idx = __bsrq(sz - 1);
+        __asm__("bsrq %1, %0" : "=r" (idx) : "0" (sz));
+        //int idx = __bsrq(sz - 1);
 #  else
-        int idx = __bsrd(sz - 1);
+        __asm__("bsr %1, %0" : "=r" (idx) : "0" (sz));
+//        int idx = __bsrd(sz - 1);
 #  endif
 #endif
         return size_t(1) << (idx + 1);
@@ -715,9 +718,12 @@ private:
     typedef StorageItem<key_type> storage_type;
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     typedef std::is_trivially_copyable<key_type> IS_TRIVIALLY_COPYABLE;
+    typedef std::is_trivially_destructible<key_type> IS_TRIVIALLY_DESTRUCTIBLE;
 #else
     typedef std::is_pod<key_type> IS_TRIVIALLY_COPYABLE;
+    typedef std::is_pod<key_type> IS_TRIVIALLY_DESTRUCTIBLE;
 #endif
+
     struct key_getter {
         HRD_ALWAYS_INLINE static const key_type& get_key(const value_type& r) noexcept {
             return r;
@@ -807,7 +813,7 @@ public:
     }
 
     HRD_ALWAYS_INLINE void clear() noexcept {
-        hash_base::clear<this_type>(IS_TRIVIALLY_COPYABLE());
+        hash_base::clear<this_type>(IS_TRIVIALLY_DESTRUCTIBLE());
     }
 
     void swap(hash_set& r) noexcept
@@ -915,8 +921,10 @@ private:
     typedef StorageItem<value_type> storage_type;
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     typedef std::integral_constant<bool, std::is_trivially_copyable<key_type>::value && std::is_trivially_copyable<mapped_type>::value> IS_TRIVIALLY_COPYABLE;
+    typedef std::integral_constant<bool, std::is_trivially_destructible<key_type>::value && std::is_trivially_destructible<mapped_type>::value> IS_TRIVIALLY_DESTRUCTIBLE;
 #else
     typedef std::integral_constant<bool, std::is_pod<key_type>::value && std::is_pod<mapped_type>::value> IS_TRIVIALLY_COPYABLE;
+    typedef std::integral_constant<bool, std::is_pod<key_type>::value && std::is_pod<mapped_type>::value> IS_TRIVIALLY_DESTRUCTIBLE;
 #endif
 
     struct key_getter {
@@ -1007,7 +1015,7 @@ public:
     }
 
     void clear() noexcept {
-        hash_base::clear<this_type>(IS_TRIVIALLY_COPYABLE());
+        hash_base::clear<this_type>(IS_TRIVIALLY_DESTRUCTIBLE());
     }
 
     void swap(this_type& r) noexcept
