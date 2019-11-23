@@ -205,10 +205,11 @@ protected:
         _BitScanReverse(&idx, sz - 1);
 #  endif
 #else
+        size_t idx;
 #  ifdef __LP64__
-        int idx = __bsrq(sz - 1);
+        __asm__("bsrq %0, %0" : "=r" (idx) : "0" (sz - 1));
 #  else
-        int idx = __bsrd(sz - 1);
+        __asm__("bsr %0, %0" : "=r" (idx) : "0" (sz - 1));
 #  endif
 #endif
         return size_t(1) << (idx + 1);
