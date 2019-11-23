@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string.h> //memcpy
 
-//version 1.2.8
+//version 1.2.9
 
 #ifdef _MSC_VER
 #  include <pmmintrin.h>
@@ -50,7 +50,7 @@ public:
 
 protected:
     //2 bits used as data-marker
-    enum { ACTIVE_MARK = 0x2, USED_MARK = 0x1 | ACTIVE_MARK, DELETED_MARK = (USED_MARK & ~ACTIVE_MARK) };
+    enum { ACTIVE_MARK = 0x1, DELETED_MARK = 0x2 };
 
 #pragma pack(push, 4)
     template<class T>
@@ -89,7 +89,7 @@ protected:
     }
 
     HRD_ALWAYS_INLINE static uint32_t make_mark(size_t h) noexcept {
-        return static_cast<uint32_t>(h | USED_MARK);
+        return static_cast<uint32_t>(h | ACTIVE_MARK);
     }
 
     //space must be allocated before
@@ -130,14 +130,14 @@ protected:
     void resize_pow2(size_t pow2, std::true_type /*trivial data*/)
     {
         typename this_type::storage_type* elements = (typename this_type::storage_type*)calloc(pow2--, sizeof(typename this_type::storage_type));
-        if (!elements)
+        if (HRD_UNLIKELY(!elements))
             throw_bad_alloc();
-
+        
         if (size_t cnt = _size)
         {
             for (typename this_type::storage_type* p = reinterpret_cast<typename this_type::storage_type*>(_elements);; ++p)
             {
-                if (HRD_UNLIKELY(p->mark >= ACTIVE_MARK))
+                if (HRD_UNLIKELY(p->mark & ACTIVE_MARK))
                 {
                     for (size_t i = p->mark;;)
                     {
@@ -170,7 +170,7 @@ protected:
             typedef typename this_type::storage_type StorageType;
             for (StorageType* p = reinterpret_cast<StorageType*>(_elements);; ++p)
             {
-                if (p->mark >= ACTIVE_MARK) {
+                if (HRD_UNLIKELY(p->mark & ACTIVE_MARK)) {
                     typedef typename this_type::value_type VT;
 
                     VT& r = p->data;
@@ -219,7 +219,7 @@ protected:
 #else
     __attribute__((noinline, noreturn))
 #endif
-        static void throw_bad_alloc() {
+    static void throw_bad_alloc() {
         throw std::bad_alloc();
     }
 
@@ -228,7 +228,7 @@ protected:
 #else
     __attribute__((noinline, noreturn))
 #endif
-        static void throw_length_error() {
+     static void throw_length_error() {
         throw std::length_error("size exceeded");
     }
 
@@ -248,14 +248,14 @@ protected:
 
             HRD_ALWAYS_INLINE const_iterator& operator++() noexcept
             {
-                if (_cnt)
+                if (HRD_LIKELY(_cnt))
                 {
-                    _cnt--;
-                    while ((++_ptr)->mark < base::ACTIVE_MARK)
+                    --_cnt;
+                    while (HRD_LIKELY(!((++_ptr)->mark & base::ACTIVE_MARK)))
                         ;
-                    return *this;
                 }
-                _ptr = nullptr;
+                else
+                    _ptr = nullptr;
                 return *this;
             }
 
@@ -285,9 +285,9 @@ protected:
         {
         public:
             using const_iterator::iterator_category;
-            using const_iterator::value_type;
-            using const_iterator::pointer;
-            using const_iterator::reference;
+            using typename const_iterator::value_type;
+            using typename const_iterator::pointer;
+            using typename const_iterator::reference;
             using const_iterator::difference_type;
             using const_iterator::operator*;
             using const_iterator::operator->;
@@ -314,9 +314,9 @@ protected:
             ctor_pow2(r._capacity + 1, sizeof(StorageType));
             for (const StorageType* p = reinterpret_cast<StorageType*>(r._elements);; ++p)
             {
-                if (p->mark >= ACTIVE_MARK) {
+                if (HRD_UNLIKELY(p->mark & ACTIVE_MARK)) {
                     insert_unique(*p, typename this_type::IS_TRIVIALLY_COPYABLE());
-                    if (!--cnt)
+                    if (HRD_UNLIKELY(!--cnt))
                         break;
                 }
             }
@@ -325,7 +325,7 @@ protected:
             ctor_empty();
     }
 
-    HRD_ALWAYS_INLINE void ctor_move(hash_base&& r)
+    HRD_ALWAYS_INLINE void ctor_move(hash_base&& r) noexcept
     {
         memcpy(this, &r, sizeof(hash_base));
         if (HRD_LIKELY(r._capacity))
@@ -432,7 +432,7 @@ protected:
     template<class this_type>
     HRD_ALWAYS_INLINE void clear(std::true_type) noexcept
     {
-        if (_capacity) {
+        if (HRD_LIKELY(_capacity)) {
             free(_elements);
             ctor_empty();
         }
@@ -448,10 +448,10 @@ protected:
 
             for (storage_type* p = reinterpret_cast<storage_type*>(_elements);; ++p)
             {
-                if (p->mark >= ACTIVE_MARK) {
+                if (HRD_UNLIKELY(p->mark & ACTIVE_MARK)) {
                     cnt--;
                     p->data.~data_type();
-                    if (!cnt)
+                    if (HRD_UNLIKELY(!cnt))
                         break;
                 }
             }
@@ -530,11 +530,11 @@ protected:
         typename this_type::iterator& ret = (typename this_type::iterator&)it;
         if (HRD_LIKELY(!!it._ptr)) //valid
         {
-            deleteElement<this_type::storage_type, this_type::value_type>(it._ptr);
+            deleteElement<typename this_type::storage_type, typename this_type::value_type>(it._ptr);
 
             if (HRD_UNLIKELY(ret._cnt)) {
                 for (--ret._cnt;;) {
-                    if (HRD_UNLIKELY((++ret._ptr)->mark >= ACTIVE_MARK))
+                    if (HRD_UNLIKELY((++ret._ptr)->mark & ACTIVE_MARK))
                         return ret;
                 }
             }
@@ -548,7 +548,7 @@ protected:
     {
         auto ptr = find_(k, ref);
         if (HRD_LIKELY(!!ptr)) {
-            deleteElement<this_type::storage_type, this_type::value_type>(ptr);
+            deleteElement<typename this_type::storage_type, typename this_type::value_type>(ptr);
             return 1;
         }
         return 0;
@@ -558,10 +558,9 @@ protected:
     HRD_ALWAYS_INLINE typename this_type::iterator begin_() noexcept
     {
         auto pm = reinterpret_cast<typename this_type::storage_type*>(_elements);
-
         if (auto cnt = _size) {
             for (--cnt;; ++pm) {
-                if (HRD_UNLIKELY(pm->mark >= ACTIVE_MARK))
+                if (HRD_UNLIKELY(pm->mark & ACTIVE_MARK))
                     return typename this_type::iterator(pm, cnt);
             }
         }
