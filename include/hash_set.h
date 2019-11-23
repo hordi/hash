@@ -92,9 +92,10 @@ protected:
         return static_cast<uint32_t>(h | ACTIVE_MARK);
     }
 
+/*
     //space must be allocated before
     template<class storage_type>
-    HRD_ALWAYS_INLINE void insert_unique(const storage_type& st, std::true_type /*trivial data*/)
+    HRD_ALWAYS_INLINE void insert_unique(const storage_type& st, std::true_type) //trivial data
     {
         _size++;
         for (size_t i = st.mark;;)
@@ -107,6 +108,7 @@ protected:
             }
         }
     }
+*/
 
     //space must be allocated before
     template<typename V>
@@ -306,7 +308,31 @@ protected:
     };
 
     template<typename this_type>
-    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r)
+    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r, std::true_type)
+    {
+        typedef typename this_type::storage_type StorageType;
+
+        if (HRD_LIKELY(r._size))
+        {
+            size_t len = (r._capacity + 1) * sizeof(StorageType);
+            _elements = malloc(len);
+            if (HRD_LIKELY(!!_elements)) {
+                memcpy(_elements, r._elements, len);
+                _size = r._size;
+                _capacity = r._capacity;
+                _erased = r._erased;
+            }
+            else {
+                _capacity = 0; //to prevent wrong free-call
+                throw_bad_alloc();
+            }
+        }
+        else
+            ctor_empty();
+    }
+
+    template<typename this_type>
+    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r, std::false_type)
     {
         typedef typename this_type::storage_type StorageType;
 
@@ -316,7 +342,7 @@ protected:
             for (const StorageType* p = reinterpret_cast<StorageType*>(r._elements);; ++p)
             {
                 if (HRD_UNLIKELY(p->mark & ACTIVE_MARK)) {
-                    insert_unique(*p, typename this_type::IS_TRIVIALLY_COPYABLE());
+                    insert_unique(*p, std::false_type());
                     if (HRD_UNLIKELY(!--cnt))
                         break;
                 }
@@ -740,7 +766,7 @@ public:
         _hf(r._hf),
         _eql(r._eql)
     {
-        ctor_copy(r);
+        ctor_copy(r, IS_TRIVIALLY_COPYABLE());
     }
 
     hash_set(this_type&& r) noexcept :
@@ -943,7 +969,7 @@ public:
         _hf(r._hf),
         _eql(r._eql)
     {
-        ctor_copy(r);
+        ctor_copy(r, IS_TRIVIALLY_COPYABLE());
     }
 
     hash_map(this_type&& r) noexcept :
