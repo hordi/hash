@@ -132,7 +132,7 @@ protected:
         typename this_type::storage_type* elements = (typename this_type::storage_type*)calloc(pow2--, sizeof(typename this_type::storage_type));
         if (HRD_UNLIKELY(!elements))
             throw_bad_alloc();
-        
+
         if (size_t cnt = _size)
         {
             for (typename this_type::storage_type* p = reinterpret_cast<typename this_type::storage_type*>(_elements);; ++p)
@@ -284,11 +284,11 @@ protected:
         class iterator : public const_iterator
         {
         public:
-            using const_iterator::iterator_category;
+            using typename const_iterator::iterator_category;
             using typename const_iterator::value_type;
             using typename const_iterator::pointer;
             using typename const_iterator::reference;
-            using const_iterator::difference_type;
+            using typename const_iterator::difference_type;
             using const_iterator::operator*;
             using const_iterator::operator->;
 
