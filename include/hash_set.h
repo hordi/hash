@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string.h> //memcpy
 
-//version 1.2.10
+//version 1.2.11
 
 #ifdef _MSC_VER
 #  include <pmmintrin.h>
@@ -308,7 +308,7 @@ protected:
     };
 
     template<typename this_type>
-    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r, std::true_type)
+    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r, std::true_type) //IS_TRIVIALLY_COPYABLE == true
     {
         typedef typename this_type::storage_type StorageType;
 
@@ -332,21 +332,40 @@ protected:
     }
 
     template<typename this_type>
-    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r, std::false_type)
+    HRD_ALWAYS_INLINE void ctor_copy_1(const this_type& r, std::true_type) //IS_NOTHROW_CONSTRUCTIBLE == true
     {
-        typedef typename this_type::storage_type StorageType;
-
         size_t cnt = r._size;
-        if (HRD_LIKELY(cnt)) {
-            ctor_pow2(r._capacity + 1, sizeof(StorageType));
-            for (const StorageType* p = reinterpret_cast<StorageType*>(r._elements);; ++p)
-            {
-                if (HRD_UNLIKELY(p->mark & ACTIVE_MARK)) {
-                    insert_unique(*p, std::false_type());
-                    if (HRD_UNLIKELY(!--cnt))
-                        break;
-                }
+        for (const typename this_type::storage_type* p = reinterpret_cast<typename this_type::storage_type*>(r._elements);; ++p)
+        {
+            if (HRD_UNLIKELY(p->mark & ACTIVE_MARK)) {
+                insert_unique(*p, std::false_type());
+                if (HRD_UNLIKELY(!--cnt))
+                    break;
             }
+        }
+    }
+
+    template<typename this_type>
+    HRD_ALWAYS_INLINE void ctor_copy_1(const this_type& r, std::false_type) //IS_NOTHROW_CONSTRUCTIBLE == false
+    {
+        //if any exception happens during any new-in-place call (ctor of elements) this object will destroy (dtor call) all already successfully created objects
+        struct exception_protector {
+            exception_protector(this_type* ptr) :_this(ptr) {}
+            ~exception_protector() { if (_this) _this->clear(); }
+            this_type* _this;
+        } tmp(reinterpret_cast<this_type*>(this));
+
+        ctor_copy_1(r, std::true_type());
+        
+        tmp._this = nullptr; //no throw
+    }
+
+    template<typename this_type>
+    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r, std::false_type) //IS_TRIVIALLY_COPYABLE == false
+    {
+        if (HRD_LIKELY(r._size)) {
+            ctor_pow2(r._capacity + 1, sizeof(typename this_type::storage_type));
+            ctor_copy_1(r, typename this_type::IS_NOTHROW_CONSTRUCTIBLE());
         }
         else
             ctor_empty();
@@ -743,9 +762,11 @@ private:
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     typedef std::is_trivially_copyable<key_type> IS_TRIVIALLY_COPYABLE;
     typedef std::is_trivially_destructible<key_type> IS_TRIVIALLY_DESTRUCTIBLE;
+    typedef std::is_nothrow_constructible<key_type> IS_NOTHROW_CONSTRUCTIBLE;
 #else
     typedef std::is_pod<key_type> IS_TRIVIALLY_COPYABLE;
     typedef std::is_pod<key_type> IS_TRIVIALLY_DESTRUCTIBLE;
+    typedef std::is_pod<key_type> IS_NOTHROW_CONSTRUCTIBLE;
 #endif
 
     struct key_getter {
@@ -946,9 +967,11 @@ private:
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     typedef std::integral_constant<bool, std::is_trivially_copyable<key_type>::value && std::is_trivially_copyable<mapped_type>::value> IS_TRIVIALLY_COPYABLE;
     typedef std::integral_constant<bool, std::is_trivially_destructible<key_type>::value && std::is_trivially_destructible<mapped_type>::value> IS_TRIVIALLY_DESTRUCTIBLE;
+    typedef std::integral_constant<bool, std::is_nothrow_constructible<key_type>::value && std::is_nothrow_constructible<mapped_type>::value> IS_NOTHROW_CONSTRUCTIBLE;
 #else
     typedef std::integral_constant<bool, std::is_pod<key_type>::value && std::is_pod<mapped_type>::value> IS_TRIVIALLY_COPYABLE;
     typedef std::integral_constant<bool, std::is_pod<key_type>::value && std::is_pod<mapped_type>::value> IS_TRIVIALLY_DESTRUCTIBLE;
+    typedef std::integral_constant<bool, std::is_pod<key_type>::value && std::is_pod<mapped_type>::value> IS_NOTHROW_CONSTRUCTIBLE;
 #endif
 
     struct key_getter {
