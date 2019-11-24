@@ -70,13 +70,15 @@ protected:
     template<typename this_type>
     class clear_in_dtor_if_throw_constructible {
     public:
-        inline clear_in_dtor_if_throw_constructible(this_type& ref) noexcept { set(ref, typename this_type::IS_NOTHROW_CONSTRUCTIBLE()); }
-        inline ~clear_in_dtor_if_throw_constructible() { if (_this) _this->clear(); }
+        inline clear_in_dtor_if_throw_constructible(this_type& ref) noexcept { set(&ref, typename this_type::IS_NOTHROW_CONSTRUCTIBLE()); }
+        inline ~clear_in_dtor_if_throw_constructible() { clear(typename this_type::IS_NOTHROW_CONSTRUCTIBLE());  }
 
-        inline void reset() { _this = nullptr; }
+        inline void reset() { set(nullptr, typename this_type::IS_NOTHROW_CONSTRUCTIBLE()); }
     private:
-        inline void set(this_type&, std::true_type) { _this = nullptr; }
-        inline void set(this_type& ref, std::false_type) { _this = &ref; }
+        inline void set(this_type*, std::true_type) {}
+        inline void set(this_type* ptr, std::false_type) { _this = ptr; }
+        inline void clear(std::true_type) {}
+        inline void clear(std::false_type) { if (_this) _this->clear(); }
         this_type* _this;
     };
 
