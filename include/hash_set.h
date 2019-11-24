@@ -66,6 +66,20 @@ protected:
 
     constexpr static const uint32_t OFFSET_BASIS = 2166136261;
 
+    //if any exception happens during any new-in-place call ::clear
+    template<typename this_type>
+    class clear_in_dtor_if_throw_constructible {
+    public:
+        inline clear_in_dtor_if_throw_constructible(this_type& ref) noexcept { set(ref, typename this_type::IS_NOTHROW_CONSTRUCTIBLE()); }
+        inline ~clear_in_dtor_if_throw_constructible() { if (_this) _this->clear(); }
+
+        inline void reset() { _this = nullptr; }
+    private:
+        inline void set(this_type&, std::true_type) { _this = nullptr; }
+        inline void set(this_type& ref, std::false_type) { _this = &ref; }
+        this_type* _this;
+    };
+
     template<size_t SIZE>
     static uint32_t hash_1(const void* ptr) noexcept {
         return hash_base::fnv_1a((const char*)ptr, SIZE);
@@ -348,16 +362,11 @@ protected:
     template<typename this_type>
     HRD_ALWAYS_INLINE void ctor_copy_1(const this_type& r, std::false_type) //IS_NOTHROW_CONSTRUCTIBLE == false
     {
-        //if any exception happens during any new-in-place call (ctor of elements) this object will destroy (dtor call) all already successfully created objects
-        struct exception_protector {
-            exception_protector(this_type* ptr) :_this(ptr) {}
-            ~exception_protector() { if (_this) _this->clear(); }
-            this_type* _this;
-        } tmp(reinterpret_cast<this_type*>(this));
+        clear_in_dtor_if_throw_constructible<this_type> tmp(*reinterpret_cast<this_type*>(this));
 
         ctor_copy_1(r, std::true_type());
-        
-        tmp._this = nullptr; //no throw
+
+        tmp.reset();
     }
 
     template<typename this_type>
@@ -384,8 +393,12 @@ protected:
     template<typename this_type>
     HRD_ALWAYS_INLINE void ctor_init_list(std::initializer_list<typename this_type::value_type> lst, this_type& ref)
     {
+        clear_in_dtor_if_throw_constructible<this_type> tmp(ref);
+
         ctor_pow2(roundup((lst.size() | 1) * 2), sizeof(typename this_type::storage_type));
         ctor_insert_(lst.begin(), lst.end(), ref, std::true_type());
+
+        tmp.reset();
     }
 #endif
 
@@ -430,15 +443,23 @@ protected:
     template<typename Iter, class this_type>
     HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, this_type& ref, std::random_access_iterator_tag)
     {
+        clear_in_dtor_if_throw_constructible<this_type> tmp(ref);
+
         ctor_pow2(roundup((std::distance(first, last) | 1) * 2), sizeof(typename this_type::storage_type));
         ctor_insert_(first, last, ref, std::true_type());
+
+        tmp.reset();
     }
 
     template<typename Iter, class this_type, typename XXX>
     HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, this_type& ref, XXX)
     {
+        clear_in_dtor_if_throw_constructible<this_type> tmp(ref);
+
         ctor_empty();
         ctor_insert_(first, last, ref, std::false_type());
+
+        tmp.reset();
     }
 
     HRD_ALWAYS_INLINE void ctor_empty() noexcept
