@@ -337,7 +337,6 @@ protected:
                 _erased = r._erased;
             }
             else {
-                _capacity = 0; //to prevent wrong free-call
                 throw_bad_alloc();
             }
         }
