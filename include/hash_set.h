@@ -1,5 +1,5 @@
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
-// version 1.2.11
+// version 1.2.12
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -72,6 +72,19 @@ public:
 
     bool empty() const noexcept { return !_size; }
 
+    float load_factor() const noexcept {
+        return (float)_size / (float)(_capacity + 1);
+    }
+
+    float max_load_factor() const noexcept {
+        //stub
+        return 0.5f;
+    }
+
+    void max_load_factor(float value) noexcept {
+        //stub
+    }
+    
 protected:
     //2 bits used as data-marker
     enum { ACTIVE_MARK = 0x1, DELETED_MARK = 0x2 };
