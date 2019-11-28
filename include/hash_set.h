@@ -1,5 +1,5 @@
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
-// version 1.2.12
+// version 1.2.13
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -181,6 +181,13 @@ protected:
         }
     }
 
+    template<typename value_type>
+    static void dtor_element(value_type& r, std::true_type /*is_trivially_destructible*/) noexcept {}
+    template<typename value_type>
+    static void dtor_element(value_type& r, std::false_type /*is_trivially_destructible*/) noexcept {
+        r.~value_type();
+    }
+    
     template<typename this_type>
     void resize_pow2(size_t pow2, std::true_type /*trivial data*/)
     {
@@ -200,6 +207,7 @@ protected:
                         auto& r = elements[i++];
                         if (HRD_LIKELY(!r.mark)) {
                             memcpy(&r, p, sizeof(typename this_type::storage_type));
+                            dtor_element(p->data, typename this_type::IS_TRIVIALLY_DESTRUCTIBLE());
                             break;
                         }
                     }
