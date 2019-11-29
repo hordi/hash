@@ -66,10 +66,6 @@ public:
     size_type size() const noexcept { return _size; }
     size_type capacity() const noexcept { return _capacity; }
 
-    static constexpr size_type max_size() noexcept {
-        return (size_type(1) << (sizeof(size_type) * 8 - 2)) - 1;
-    }
-
     bool empty() const noexcept { return !_size; }
 
     float load_factor() const noexcept {
@@ -893,6 +889,10 @@ public:
         clear();
     }
 
+    static constexpr size_type max_size() noexcept {
+        return (size_type(1) << (sizeof(size_type) * 8 - 1)) / sizeof(storage_type);
+    }
+
     iterator begin() noexcept {
         return begin_<this_type>();
     }
@@ -1096,6 +1096,10 @@ public:
 
     ~hash_map() {
         clear();
+    }
+
+    static constexpr size_type max_size() noexcept {
+        return (size_type(1) << (sizeof(size_type) * 8 - 1)) / sizeof(storage_type);
     }
 
     iterator begin() noexcept {
