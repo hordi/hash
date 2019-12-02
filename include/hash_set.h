@@ -1,5 +1,5 @@
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
-// version 1.2.13
+// version 1.2.14
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -25,7 +25,6 @@
 // SOFTWARE.
 
 #pragma once
-
 #include <functional>
 #include <stdexcept>
 #include <cstdint>
@@ -112,6 +111,43 @@ protected:
         inline void clear(std::true_type) {}
         inline void clear(std::false_type) { if (_this) _this->clear(); }
         this_type* _this;
+    };
+
+    template <class Key, class Hasher, class KeyEql>
+    class 
+#if defined(_MSC_VER) && _MSC_VER >= 1915
+        __declspec (empty_bases)
+#endif
+        hash_eql : private Hasher, private KeyEql
+    {
+    public:
+        hash_eql() {}
+        hash_eql(const Hasher& h, const KeyEql& eql) :Hasher(h), KeyEql(eql) {}
+        hash_eql(const hash_eql& r) : Hasher(r), KeyEql(r) {}
+        hash_eql(hash_eql&& r) noexcept : Hasher(std::move(r)), KeyEql(std::move(r)) {}
+
+        hash_eql& operator=(const hash_eql& r) {
+            hash_eql(r).swap(*this);
+            return *this;
+        }
+
+        hash_eql& operator=(hash_eql&& r) noexcept {
+            const_cast<Hasher&>(hasher()) = std::move(r);
+            const_cast<KeyEql&>(keyeql()) = std::move(r);
+            return *this;
+        }
+
+        HRD_ALWAYS_INLINE size_t operator()(const Key& k) const { return static_cast<size_t>(hasher()(k)); }
+        HRD_ALWAYS_INLINE bool operator()(const Key& k1, const Key& k2) const { return keyeql()(k1, k2); }
+    
+        void swap(hash_eql& r) noexcept {
+            std::swap(const_cast<Hasher&>(hasher()), const_cast<Hasher&>(r.hasher()));
+            std::swap(const_cast<KeyEql&>(keyeql()), const_cast<KeyEql&>(r.keyeql()));
+        }
+
+    private:
+        HRD_ALWAYS_INLINE const Hasher& hasher() const noexcept { return *this; }
+        HRD_ALWAYS_INLINE const KeyEql& keyeql() const noexcept { return *this; }
     };
 
     template<size_t SIZE>
@@ -438,7 +474,7 @@ protected:
     template<typename V, class this_type>
     HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::true_type /*resized*/)
     {
-        const uint32_t mark = make_mark(ref._hf(this_type::key_getter::get_key(val)));
+        const uint32_t mark = make_mark(ref(this_type::key_getter::get_key(val)));
         for (size_t i = mark;;)
         {
             i &= _capacity;
@@ -453,7 +489,7 @@ protected:
                 _size++;
                 return;
             }
-            if (h == mark && HRD_LIKELY(ref._eql(this_type::key_getter::get_key(r->data), this_type::key_getter::get_key(val)))) //identical found
+            if (h == mark && HRD_LIKELY(ref(this_type::key_getter::get_key(r->data), this_type::key_getter::get_key(val)))) //identical found
                 return;
         }
     }
@@ -572,7 +608,7 @@ protected:
 
         typename this_type::storage_type* empty_spot = nullptr;
         uint32_t deleted_mark = DELETED_MARK;
-        const uint32_t mark = make_mark(ref._hf(this_type::key_getter::get_key(val)));
+        const uint32_t mark = make_mark(ref(this_type::key_getter::get_key(val)));
 
         for (size_t i = mark;;)
         {
@@ -594,7 +630,7 @@ protected:
             }
             if (h == mark)
             {
-                if (HRD_LIKELY(ref._eql(this_type::key_getter::get_key(r->data), this_type::key_getter::get_key(val)))) //identical found
+                if (HRD_LIKELY(ref(this_type::key_getter::get_key(r->data), this_type::key_getter::get_key(val)))) //identical found
                     return std::pair<typename this_type::iterator, bool>(r, false);
             }
             else if (h == deleted_mark)
@@ -608,7 +644,7 @@ protected:
     template<typename key_type, class this_type>
     HRD_ALWAYS_INLINE typename this_type::storage_type* find_(const key_type& k, this_type& ref) const noexcept
     {
-        const uint32_t mark = make_mark(ref._hf(k));
+        const uint32_t mark = make_mark(ref(k));
         for (size_t i = mark;;)
         {
             i &= _capacity;
@@ -616,7 +652,7 @@ protected:
             auto h = r.mark;
             if (HRD_LIKELY(h == mark))
             {
-                if (HRD_LIKELY(ref._eql(this_type::key_getter::get_key(r.data), k))) //identical found
+                if (HRD_LIKELY(ref(this_type::key_getter::get_key(r.data), k))) //identical found
                     return &r;
             }
             else if (!h)
@@ -798,7 +834,7 @@ struct hash_base::hash_<std::string> {
 //----------------------------------------- hash_set -----------------------------------------
 
 template<class Key, class Hash = hash_base::hash_<Key>, class Pred = std::equal_to<Key>>
-class hash_set : public hash_base
+class hash_set : public hash_base, private hash_base::hash_eql<Key, Hash, Pred>
 {
 public:
     typedef hash_set<Key, Hash, Pred>   this_type;
@@ -806,13 +842,15 @@ public:
     typedef Hash                        hasher;
     typedef Pred                        key_equal;
     typedef const key_type              value_type;
-    typedef value_type& reference;
-    typedef const value_type& const_reference;
+    typedef value_type&                 reference;
+    typedef const value_type&           const_reference;
 
 private:
     friend iterator_base<this_type>;
     friend hash_base;
-    typedef StorageItem<key_type> storage_type;
+    typedef StorageItem<key_type>       storage_type;
+    typedef hash_eql<Key, Hash, Pred>   hash_pred;
+
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     typedef std::is_trivially_copyable<key_type> IS_TRIVIALLY_COPYABLE;
     typedef std::is_trivially_destructible<key_type> IS_TRIVIALLY_DESTRUCTIBLE;
@@ -838,22 +876,19 @@ public:
     }
 
     hash_set(const this_type& r) :
-        _hf(r._hf),
-        _eql(r._eql)
+        hash_pred(r)
     {
         ctor_copy(r, IS_TRIVIALLY_COPYABLE());
     }
 
     hash_set(this_type&& r) noexcept :
-        _hf(std::move(r._hf)),
-        _eql(std::move(r._eql))
+        hash_pred(std::move(r))
     {
         ctor_move(std::move(r));
     }
 
     hash_set(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        _hf(hf),
-        _eql(eql)
+        hash_pred(hf, eql)
     {
         // |1 to prevent 0-usage (produces _capacity = 0 finally)
         ctor_pow2(roundup((hint_size | 1) * 2), sizeof(storage_type));
@@ -861,16 +896,14 @@ public:
 
     template<typename Iter>
     hash_set(Iter first, Iter last, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        _hf(hf),
-        _eql(eql)
+        hash_pred(hf, eql)
     {
         ctor_iters(first, last, *this, Iter::iterator_category());
     }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     hash_set(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        _hf(hf),
-        _eql(eql)
+        hash_pred(hf, eql)
     {
         ctor_init_list(lst, *this);
     }
@@ -922,8 +955,7 @@ public:
     void swap(hash_set& r) noexcept
     {
         hash_base::swap(r);
-        std::swap(_hf, r._hf);
-        std::swap(_eql, r._eql);
+        hash_pred::swap(r);
     }
 
     /*! Can invalidate iterators. */
@@ -998,15 +1030,12 @@ private:
     hash_set(size_type pow2, bool) {
         ctor_pow2(pow2, sizeof(storage_type));
     }
-
-    hasher _hf;
-    key_equal _eql;
 };
 
 //----------------------------------------- hash_map -----------------------------------------
 
 template<class Key, class T, class Hash = hash_base::hash_<Key>, class Pred = std::equal_to<Key>>
-class hash_map : public hash_base
+class hash_map : public hash_base, private hash_base::hash_eql<Key, Hash, Pred>
 {
 public:
     typedef hash_map<Key, T, Hash, Pred>            this_type;
@@ -1015,13 +1044,15 @@ public:
     typedef Hash                                    hasher;
     typedef Pred                                    key_equal;
     typedef std::pair<const key_type, mapped_type>  value_type;
-    typedef value_type& reference;
-    typedef const value_type& const_reference;
+    typedef value_type&                             reference;
+    typedef const value_type&                       const_reference;
 
 private:
     friend iterator_base<this_type>;
     friend hash_base;
-    typedef StorageItem<value_type> storage_type;
+    typedef StorageItem<value_type>     storage_type;
+    typedef hash_eql<Key, Hash, Pred>   hash_pred;
+
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     typedef std::integral_constant<bool, std::is_trivially_copyable<key_type>::value && std::is_trivially_copyable<mapped_type>::value> IS_TRIVIALLY_COPYABLE;
     typedef std::integral_constant<bool, std::is_trivially_destructible<key_type>::value && std::is_trivially_destructible<mapped_type>::value> IS_TRIVIALLY_DESTRUCTIBLE;
@@ -1046,23 +1077,19 @@ public:
         ctor_empty();
     }
 
-    hash_map(const this_type& r) :
-        _hf(r._hf),
-        _eql(r._eql)
+    hash_map(const this_type& r) : hash_pred(r)
     {
         ctor_copy(r, IS_TRIVIALLY_COPYABLE());
     }
 
     hash_map(this_type&& r) noexcept :
-        _hf(std::move(r._hf)),
-        _eql(std::move(r._eql))
+        hash_pred(std::move(r))
     {
         ctor_move(std::move(r));
     }
 
     hash_map(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        _hf(hf),
-        _eql(eql)
+        hash_pred(hf, eql)
     {
         // |1 to prevent 0-usage (produces _capacity = 0 finally)
         ctor_pow2(roundup((hint_size | 1) * 2), sizeof(storage_type));
@@ -1070,16 +1097,14 @@ public:
 
     template<typename Iter>
     hash_map(Iter first, Iter last, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        _hf(hf),
-        _eql(eql)
+        hash_pred(hf, eql)
     {
         ctor_iters(first, last, *this, Iter::iterator_category());
     }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     hash_map(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        _hf(hf),
-        _eql(eql)
+        hash_pred(hf, eql)
     {
         ctor_init_list(lst, *this);
     }
@@ -1130,8 +1155,7 @@ public:
     void swap(this_type& r) noexcept
     {
         hash_base::swap(r);
-        std::swap(_hf, r._hf);
-        std::swap(_eql, r._eql);
+        hash_pred::swap(r);
     }
 
     /*! Can invalidate iterators. */
@@ -1247,7 +1271,7 @@ private:
 
         storage_type* empty_spot = nullptr;
         uint32_t deleted_mark = DELETED_MARK;
-        const uint32_t mark = make_mark(_hf(k));
+        const uint32_t mark = make_mark(hash_pred::operator()(k));
 
         for (size_t i = mark;;)
         {
@@ -1271,7 +1295,7 @@ private:
             }
             if (h == mark)
             {
-                if (HRD_LIKELY(_eql(r->data.first, k))) //identical found
+                if (HRD_LIKELY(hash_pred::operator()(r->data.first, k))) //identical found
                     return std::pair<iterator, bool>(r, false);
             }
             else if (h == deleted_mark)
@@ -1291,7 +1315,7 @@ private:
 
         storage_type* empty_spot = nullptr;
         uint32_t deleted_mark = DELETED_MARK;
-        const uint32_t mark = make_mark(_hf(k));
+        const uint32_t mark = make_mark(hash_pred::operator()(k));
 
         for (size_t i = mark;;)
         {
@@ -1310,7 +1334,7 @@ private:
             }
             if (h == mark)
             {
-                if (HRD_LIKELY(_eql(r->data.first, k))) //identical found
+                if (HRD_LIKELY(hash_pred::operator()(r->data.first, k))) //identical found
                     return r->data.second;
             }
             else if (h == deleted_mark)
@@ -1320,10 +1344,6 @@ private:
             }
         }
     }
-
-    hasher _hf;
-    key_equal _eql;
 };
 
 } //namespace hrd
-
