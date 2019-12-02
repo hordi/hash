@@ -24,8 +24,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef hrd_hash_set_h_
-#define hrd_hash_set_h_
+#pragma once
 
 #include <functional>
 #include <stdexcept>
@@ -681,7 +680,7 @@ protected:
         }
     }
 
-    HRD_ALWAYS_INLINE void swap(hash_base& r)
+    HRD_ALWAYS_INLINE void swap(hash_base& r) noexcept
     {
         __m128i mm0 = _mm_loadu_si128((__m128i*)this);
         __m128i r_mm0 = _mm_loadu_si128((__m128i*) & r);
@@ -1328,4 +1327,3 @@ private:
 
 } //namespace hrd
 
-#endif //hrd_hash_set_h_
