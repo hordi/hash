@@ -744,14 +744,14 @@ protected:
             ctor_copy_1(r, IS_NOTHROW_CONSTRUCTIBLE());
         }
         else
-            ctor_empty();
+            ctor_empty(r._loadlf);
     }
 
     HRD_ALWAYS_INLINE void ctor_move(hash_base&& r) noexcept
     {
         memcpy(this, &r, sizeof(hash_base));
         if (HRD_LIKELY(r._capacity))
-            r.ctor_empty();
+            r.ctor_empty(r._loadlf);
         else
             _elements = &_size; //0-hash indicates empty element - use this trick to prevent redundant "is empty" check in find-function
     }
