@@ -1,5 +1,5 @@
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
-// version 1.2.14
+// version 1.2.15
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -392,7 +392,7 @@ protected:
     };
 
     template<typename this_type>
-    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r, std::true_type) //IS_TRIVIALLY_COPYABLE == true
+    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r, std::true_type) //IS_TRIVIALLY_COPYABLE
     {
         typedef typename this_type::storage_type StorageType;
 
@@ -415,7 +415,7 @@ protected:
     }
 
     template<typename this_type>
-    HRD_ALWAYS_INLINE void ctor_copy_1(const this_type& r, std::true_type) //IS_NOTHROW_CONSTRUCTIBLE == true
+    HRD_ALWAYS_INLINE void ctor_copy_1(const this_type& r, std::true_type) //IS_NOTHROW_CONSTRUCTIBLE
     {
         size_t cnt = r._size;
         for (const typename this_type::storage_type* p = reinterpret_cast<typename this_type::storage_type*>(r._elements);; ++p)
@@ -439,7 +439,7 @@ protected:
     }
 
     template<typename this_type>
-    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r, std::false_type) //IS_TRIVIALLY_COPYABLE == false
+    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r, std::false_type) //IS_TRIVIALLY_COPYABLE
     {
         if (HRD_LIKELY(r._size)) {
             ctor_pow2(r._capacity + 1, sizeof(typename this_type::storage_type));
@@ -462,9 +462,10 @@ protected:
     template<typename this_type>
     HRD_ALWAYS_INLINE void ctor_init_list(std::initializer_list<typename this_type::value_type> lst, this_type& ref)
     {
+        ctor_pow2(roundup((lst.size() | 1) * 2), sizeof(typename this_type::storage_type));
+
         clear_in_dtor_if_throw_constructible<this_type> tmp(ref);
 
-        ctor_pow2(roundup((lst.size() | 1) * 2), sizeof(typename this_type::storage_type));
         ctor_insert_(lst.begin(), lst.end(), ref, std::true_type());
 
         tmp.reset();
@@ -512,9 +513,10 @@ protected:
     template<typename Iter, class this_type>
     HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, this_type& ref, std::random_access_iterator_tag)
     {
+        ctor_pow2(roundup((std::distance(first, last) | 1) * 2), sizeof(typename this_type::storage_type));
+
         clear_in_dtor_if_throw_constructible<this_type> tmp(ref);
 
-        ctor_pow2(roundup((std::distance(first, last) | 1) * 2), sizeof(typename this_type::storage_type));
         ctor_insert_(first, last, ref, std::true_type());
 
         tmp.reset();
@@ -974,7 +976,7 @@ public:
     void insert(std::initializer_list<value_type> lst)
     {
         for (auto i = lst.begin(), e = lst.end(); i != e; ++i)
-            insert_(*i, *this);
+            insert_(std::move(*i), *this);
     }
 #endif
 
@@ -1077,7 +1079,8 @@ public:
         ctor_empty();
     }
 
-    hash_map(const this_type& r) : hash_pred(r)
+    hash_map(const this_type& r) :
+        hash_pred(r)
     {
         ctor_copy(r, IS_TRIVIALLY_COPYABLE());
     }
@@ -1174,7 +1177,7 @@ public:
     void insert(std::initializer_list<value_type> lst)
     {
         for (auto i = lst.begin(), e = lst.end(); i != e; ++i)
-            insert_(*i, *this);
+            insert_(std::move(*i), *this);
     }
 
     /*! Can invalidate iterators. */
