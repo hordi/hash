@@ -596,7 +596,7 @@ protected:
     {
         if (HRD_LIKELY(_capacity)) {
             free(_elements);
-            ctor_empty();
+            ctor_empty(_loadlf);
         }
     }
 
@@ -618,7 +618,7 @@ protected:
             return;
 
         free(_elements);
-        ctor_empty();
+        ctor_empty(_loadlf);
     }
 
     //space must be allocated before
