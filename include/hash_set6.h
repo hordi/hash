@@ -43,7 +43,7 @@
 #  define HRD_UNLIKELY(condition) __builtin_expect(condition, 0)
 #endif
 
-namespace hrd {
+namespace hrd6 {
 
 class hash_utils {
 public:
