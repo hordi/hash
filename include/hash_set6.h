@@ -632,7 +632,7 @@ protected:
 
         if (size_t cnt = _size)
         {
-            for (storage_type* p = _elements;; ++p)
+            for (storage_type* p = (storage_type*)_elements;; ++p)
             {
                 if (HRD_UNLIKELY(p->mark & ACTIVE_MARK))
                 {
@@ -970,7 +970,7 @@ public:
         hash_base(hf, eql)
     {
         // |1 to prevent 0-usage (produces _capacity = 0 finally)
-        super_type::ctor_pow2(roundup((hint_size | 1) * 2), sizeof(storage_type));
+        super_type::ctor_pow2(hash_utils::roundup((hint_size | 1) * 2), sizeof(storage_type));
     }
 
     template<typename Iter>
@@ -1066,7 +1066,7 @@ public:
         super_type(hf, eql)
     {
         // |1 to prevent 0-usage (produces _capacity = 0 finally)
-        super_type::ctor_pow2(roundup((hint_size | 1) * 2), sizeof(storage_type));
+        super_type::ctor_pow2(hash_utils::roundup((hint_size | 1) * 2), sizeof(storage_type));
     }
 
     template<typename Iter>
