@@ -1,7 +1,7 @@
 #pragma once
 
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
-// version 1.2.14
+// version 1.2.15
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -43,7 +43,7 @@
 #  define HRD_UNLIKELY(condition) __builtin_expect(condition, 0)
 #endif
 
-namespace hrd6 {
+namespace hrd {
 
 class hash_utils {
 public:
@@ -387,6 +387,9 @@ public:
     hash_base() noexcept {
         ctor_empty();
     }
+    hash_base(const hasher& hf, const key_equal& eql) :
+        hash_pred(hf, eql)
+    {}
     ~hash_base() noexcept {
         clear(IS_TRIVIALLY_DESTRUCTIBLE());
     }
@@ -722,7 +725,6 @@ protected:
     HRD_ALWAYS_INLINE void ctor_copy_1(const this_type& r, std::false_type) //IS_NOTHROW_CONSTRUCTIBLE == false
     {
         clear_in_dtor_if_throw_constructible<this_type> tmp(*reinterpret_cast<this_type*>(this));
-
         ctor_copy_1(r, std::true_type());
 
         tmp.reset();
@@ -748,12 +750,11 @@ protected:
     }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
-    HRD_ALWAYS_INLINE void ctor_init_list(std::initializer_list<value_type> lst, this_type& ref)
+    HRD_ALWAYS_INLINE void ctor_init_list(std::initializer_list<value_type> lst)
     {
-        clear_in_dtor_if_throw_constructible<this_type> tmp(ref);
-
-        ctor_pow2(roundup((lst.size() | 1) * 2), sizeof(storage_type));
-        ctor_insert_(lst.begin(), lst.end(), ref, std::true_type());
+        ctor_pow2(roundup((lst.size() | 1) * 2));
+        clear_in_dtor_if_throw_constructible<this_type> tmp(*this);
+        ctor_insert_(lst.begin(), lst.end(), std::true_type());
 
         tmp.reset();
     }
@@ -798,9 +799,8 @@ protected:
     template<typename Iter>
     HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, std::random_access_iterator_tag)
     {
+        ctor_pow2(roundup((std::distance(first, last) | 1) * 2));
         clear_in_dtor_if_throw_constructible<this_type> tmp(*this);
-
-        ctor_pow2(roundup((std::distance(first, last) | 1) * 2), sizeof(storage_type));
         ctor_insert_(first, last, std::true_type());
 
         tmp.reset();
@@ -810,7 +810,6 @@ protected:
     HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, XXX)
     {
         clear_in_dtor_if_throw_constructible<this_type> tmp(*this);
-
         ctor_empty();
         ctor_insert_(first, last, std::false_type());
 
@@ -935,9 +934,9 @@ protected:
 //----------------------------------------- hash_set -----------------------------------------
 
 template<class Key, class Hash = hash_utils::hash_<Key>, class Pred = std::equal_to<Key>>
-class hash_set : public hash_base<Key, Key, Key, Hash, Pred>
+class hash_set : public hash_base<Key, Key, const Key, Hash, Pred>
 {
-    typedef hash_base<Key, Key, Key, Hash, Pred> super_type;
+    typedef hash_base<Key, Key, const Key, Hash, Pred> super_type;
     using super_type::storage_type;
 public:
     typedef hash_set<Key, Hash, Pred>   this_type;
@@ -955,36 +954,36 @@ public:
     hash_set() {}
 
     hash_set(const this_type& r) :
-        hash_base(r)
+        super_type(r)
     {
         super_type::ctor_copy(r, typename super_type::IS_TRIVIALLY_COPYABLE());
     }
 
     hash_set(this_type&& r) noexcept :
-        hash_base(std::move(r))
+        super_type(std::move(r))
     {
         super_type::ctor_move(std::move(r));
     }
 
     hash_set(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        hash_base(hf, eql)
+        super_type(hf, eql)
     {
         // |1 to prevent 0-usage (produces _capacity = 0 finally)
-        super_type::ctor_pow2(hash_utils::roundup((hint_size | 1) * 2), sizeof(storage_type));
+        super_type::ctor_pow2(hash_utils::roundup((hint_size | 1) * 2));
     }
 
     template<typename Iter>
     hash_set(Iter first, Iter last, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        hash_base(hf, eql)
+        super_type(hf, eql)
     {
-        super_type::ctor_iters(first, last, *this, Iter::iterator_category());
+        super_type::ctor_iters(first, last, Iter::iterator_category());
     }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     hash_set(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        hash_base(hf, eql)
+        super_type(hf, eql)
     {
-        super_type::ctor_init_list(lst, *this);
+        super_type::ctor_init_list(lst);
     }
 #endif
 
@@ -995,29 +994,29 @@ public:
     }
 
     HRD_ALWAYS_INLINE std::pair<iterator, bool> insert(const key_type& val) {
-        return super_type::insert_(val, const_cast<this_type&>(*this));
+        return super_type::insert_(val);
     }
 
     template<class P>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> insert(P&& val) {
-        return super_type::insert_(std::forward<P>(val), const_cast<this_type&>(*this));
+        return super_type::insert_(std::forward<P>(val));
     }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     void insert(std::initializer_list<value_type> lst)
     {
         for (auto i = lst.begin(), e = lst.end(); i != e; ++i)
-            super_type::insert_(*i, *this);
+            super_type::insert_(*i);
     }
 #endif
 
     template<class K>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace(K&& val) {
-        return super_type::insert_(std::forward<K>(val), const_cast<this_type&>(*this));
+        return super_type::insert_(std::forward<K>(val));
     }
 
     HRD_ALWAYS_INLINE hash_set& operator=(const hash_set& r) {
-        super_type::swap(r);
+        this_type(r).swap(*this);
         return *this;
     }
 
@@ -1066,21 +1065,21 @@ public:
         super_type(hf, eql)
     {
         // |1 to prevent 0-usage (produces _capacity = 0 finally)
-        super_type::ctor_pow2(hash_utils::roundup((hint_size | 1) * 2), sizeof(storage_type));
+        super_type::ctor_pow2(hash_utils::roundup((hint_size | 1) * 2));
     }
 
     template<typename Iter>
     hash_map(Iter first, Iter last, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
         super_type(hf, eql)
     {
-        super_type::ctor_iters(first, last, *this, Iter::iterator_category());
+        super_type::ctor_iters(first, last, Iter::iterator_category());
     }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     hash_map(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        hash_base(hf, eql)
+        super_type(hf, eql)
     {
-        super_type::ctor_init_list(lst, *this);
+        super_type::ctor_init_list(lst);
     }
 #endif
 
@@ -1103,7 +1102,7 @@ public:
     void insert(std::initializer_list<value_type> lst)
     {
         for (auto i = lst.begin(), e = lst.end(); i != e; ++i)
-            super_type::insert_(*i);
+            super_type::insert_(std::move(*i));
     }
 
     template<class... Args>
