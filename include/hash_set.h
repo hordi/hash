@@ -976,7 +976,7 @@ public:
     void insert(std::initializer_list<value_type> lst)
     {
         for (auto i = lst.begin(), e = lst.end(); i != e; ++i)
-            insert_(std::move(*i), *this);
+            insert_(*i, *this);
     }
 #endif
 
@@ -1177,7 +1177,7 @@ public:
     void insert(std::initializer_list<value_type> lst)
     {
         for (auto i = lst.begin(), e = lst.end(); i != e; ++i)
-            insert_(std::move(*i), *this);
+            insert_(*i, *this);
     }
 
     /*! Can invalidate iterators. */
