@@ -78,7 +78,45 @@ public:
     void max_load_factor(float value) noexcept {
         //stub
     }
-    
+
+    template <class Key, class Hasher, class KeyEql>
+    class 
+#if defined(_MSC_VER) && _MSC_VER >= 1915
+        __declspec (empty_bases)
+#endif
+        hash_eql : private Hasher, private KeyEql
+    {
+    public:
+        hash_eql() {}
+        hash_eql(const Hasher& h, const KeyEql& eql) :Hasher(h), KeyEql(eql) {}
+        hash_eql(const hash_eql& r) : Hasher(r), KeyEql(r) {}
+        hash_eql(hash_eql&& r) noexcept : Hasher(std::move(r)), KeyEql(std::move(r)) {}
+
+        hash_eql& operator=(const hash_eql& r) {
+            hash_eql(r).swap(*this);
+            return *this;
+        }
+
+        hash_eql& operator=(hash_eql&& r) noexcept {
+            const_cast<Hasher&>(hasher()) = std::move(r);
+            const_cast<KeyEql&>(keyeql()) = std::move(r);
+            return *this;
+        }
+
+        HRD_ALWAYS_INLINE size_t operator()(const Key& k) const { return static_cast<size_t>(hasher()(k)); }
+        HRD_ALWAYS_INLINE bool operator()(const Key& k1, const Key& k2) const { return keyeql()(k1, k2); }
+
+        void swap(hash_eql& r) noexcept {
+            std::swap(const_cast<Hasher&>(hasher()), const_cast<Hasher&>(r.hasher()));
+            std::swap(const_cast<KeyEql&>(keyeql()), const_cast<KeyEql&>(r.keyeql()));
+        }
+
+    private:
+        HRD_ALWAYS_INLINE const Hasher& hasher() const noexcept { return *this; }
+        HRD_ALWAYS_INLINE const KeyEql& keyeql() const noexcept { return *this; }
+    };
+
+
 protected:
     //2 bits used as data-marker
     enum { ACTIVE_MARK = 0x1, DELETED_MARK = 0x2 };
@@ -111,43 +149,6 @@ protected:
         inline void clear(std::true_type) {}
         inline void clear(std::false_type) { if (_this) _this->clear(); }
         this_type* _this;
-    };
-
-    template <class Key, class Hasher, class KeyEql>
-    class 
-#if defined(_MSC_VER) && _MSC_VER >= 1915
-        __declspec (empty_bases)
-#endif
-        hash_eql : private Hasher, private KeyEql
-    {
-    public:
-        hash_eql() {}
-        hash_eql(const Hasher& h, const KeyEql& eql) :Hasher(h), KeyEql(eql) {}
-        hash_eql(const hash_eql& r) : Hasher(r), KeyEql(r) {}
-        hash_eql(hash_eql&& r) noexcept : Hasher(std::move(r)), KeyEql(std::move(r)) {}
-
-        hash_eql& operator=(const hash_eql& r) {
-            hash_eql(r).swap(*this);
-            return *this;
-        }
-
-        hash_eql& operator=(hash_eql&& r) noexcept {
-            const_cast<Hasher&>(hasher()) = std::move(r);
-            const_cast<KeyEql&>(keyeql()) = std::move(r);
-            return *this;
-        }
-
-        HRD_ALWAYS_INLINE size_t operator()(const Key& k) const { return static_cast<size_t>(hasher()(k)); }
-        HRD_ALWAYS_INLINE bool operator()(const Key& k1, const Key& k2) const { return keyeql()(k1, k2); }
-    
-        void swap(hash_eql& r) noexcept {
-            std::swap(const_cast<Hasher&>(hasher()), const_cast<Hasher&>(r.hasher()));
-            std::swap(const_cast<KeyEql&>(keyeql()), const_cast<KeyEql&>(r.keyeql()));
-        }
-
-    private:
-        HRD_ALWAYS_INLINE const Hasher& hasher() const noexcept { return *this; }
-        HRD_ALWAYS_INLINE const KeyEql& keyeql() const noexcept { return *this; }
     };
 
     template<size_t SIZE>
