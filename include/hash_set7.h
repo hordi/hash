@@ -388,17 +388,30 @@ protected:
     typedef typename iterator_base<this_type>::iterator iterator;
     typedef typename iterator_base<this_type>::const_iterator const_iterator;
 
-public:
     hash_base() noexcept {
         ctor_empty();
+    }
+    hash_base(const hash_base& r) :
+        hash_pred(r)
+    {
+        ctor_copy(r, IS_TRIVIALLY_COPYABLE());
+    }
+    hash_base(hash_base&& r) noexcept :
+        hash_pred(std::move(r))
+    {
+        ctor_move(std::move(r));
     }
     hash_base(const hasher& hf, const key_equal& eql) :
         hash_pred(hf, eql)
     {}
+    hash_base(size_type pow2, float loadf) {
+        ctor_pow2(pow2, loadf);
+    }
     ~hash_base() noexcept {
         dtor(IS_TRIVIALLY_DESTRUCTIBLE());
     }
 
+public:
     size_type size() const noexcept { return _size; }
     size_type capacity() const noexcept { return _capacity; }
 
@@ -521,10 +534,6 @@ public:
     }
 
 protected:
-    hash_base(size_type pow2, float loadf) {
-        ctor_pow2(pow2, loadf);
-    }
-
     HRD_ALWAYS_INLINE void swap(this_type& r)
     {
         __m128i mm0 = _mm_loadu_si128((__m128i*)this);
@@ -977,15 +986,11 @@ public:
 
     hash_set(const this_type& r) :
         super_type(r)
-    {
-        super_type::ctor_copy(r, typename super_type::IS_TRIVIALLY_COPYABLE());
-    }
+    {}
 
     hash_set(this_type&& r) noexcept :
         super_type(std::move(r))
-    {
-        super_type::ctor_move(std::move(r));
-    }
+    {}
 
     hash_set(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
         super_type(hf, eql)
@@ -1073,15 +1078,11 @@ public:
 
     hash_map(const this_type& r) :
         super_type(r)
-    {
-        super_type::ctor_copy(r, typename super_type::IS_TRIVIALLY_COPYABLE());
-    }
+    {}
 
     hash_map(this_type&& r) noexcept :
         super_type(std::move(r))
-    {
-        super_type::ctor_move(std::move(r));
-    }
+    {}
 
     hash_map(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
         super_type(hf, eql)
