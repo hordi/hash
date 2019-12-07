@@ -431,8 +431,10 @@ public:
     }
 
     void max_load_factor(float val) noexcept {
-        if (val >= 0.2f && val < 0.995f)
+        if (val >= 0.2f && val < 0.995f) {
+            _gap = (size_type)(val * (_capacity + 1));
             _loadlf = val;
+        }
     }
 
     HRD_ALWAYS_INLINE void reserve(size_type hint) {
@@ -577,8 +579,8 @@ protected:
     {
         _size = 0;
         _capacity = pow2 - 1;
-        _gap = (size_type)(loadf * pow2);
         _erased = 0;
+        _gap = (size_type)(loadf * pow2);
         _elements = (storage_type*)calloc(pow2, sizeof(storage_type));
         _loadlf = loadf;
         if (HRD_UNLIKELY(!_elements))
