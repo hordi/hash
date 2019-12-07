@@ -1,7 +1,7 @@
 #pragma once
 
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
-// version 1.2.15
+// version 1.2.16
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -391,7 +391,7 @@ public:
         hash_pred(hf, eql)
     {}
     ~hash_base() noexcept {
-        clear(IS_TRIVIALLY_DESTRUCTIBLE());
+        dtor(IS_TRIVIALLY_DESTRUCTIBLE());
     }
 
     size_type size() const noexcept { return _size; }
@@ -583,15 +583,13 @@ protected:
         }
     }
 
-    HRD_ALWAYS_INLINE void clear(std::true_type) noexcept
+    HRD_ALWAYS_INLINE void dtor(std::true_type) noexcept
     {
-        if (HRD_LIKELY(_capacity)) {
+        if (HRD_LIKELY(_capacity))
             free(_elements);
-            ctor_empty();
-        }
     }
 
-    HRD_ALWAYS_INLINE void clear(std::false_type) noexcept
+    HRD_ALWAYS_INLINE void dtor(std::false_type) noexcept
     {
         if (auto cnt = _size)
         {
@@ -609,6 +607,19 @@ protected:
             return;
 
         free(_elements);
+    }
+
+    HRD_ALWAYS_INLINE void clear(std::true_type) noexcept
+    {
+        if (HRD_LIKELY(_capacity)) {
+            free(_elements);
+            ctor_empty();
+        }
+    }
+
+    HRD_ALWAYS_INLINE void clear(std::false_type) noexcept
+    {
+        dtor(std::false_type());
         ctor_empty();
     }
 
@@ -681,8 +692,12 @@ protected:
                         break;
                 }
             }
+            _size = tmp._size;
+            tmp._size = 0; //prevent elements dtor call
         }
-        swap(tmp);
+        std::swap(_capacity, tmp._capacity);
+        std::swap(_elements, tmp._elements);
+        _erased = 0;
     }
 
     HRD_ALWAYS_INLINE void resize_pow2(size_t pow2) {

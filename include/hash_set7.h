@@ -3,7 +3,7 @@
 //LOAD_FACTOR implementation
 
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
-// version 1.2.15
+// version 1.2.16
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -396,7 +396,7 @@ public:
         hash_pred(hf, eql)
     {}
     ~hash_base() noexcept {
-        clear(IS_TRIVIALLY_DESTRUCTIBLE());
+        dtor(IS_TRIVIALLY_DESTRUCTIBLE());
     }
 
     size_type size() const noexcept { return _size; }
@@ -555,21 +555,21 @@ protected:
 
     HRD_ALWAYS_INLINE void ctor_empty(float loadlf = DEFAULT_LOAD_FACTOR) noexcept
     {
-        _gap = 0;
         _size = 0;
         _capacity = 0;
         _erased = 0;
+        _gap = 0;
         _elements = (storage_type*)&_size; //0-hash indicates empty element - use this trick to prevent redundant "is empty" check in find-function
         _loadlf = loadlf;
     }
 
     HRD_ALWAYS_INLINE void ctor_pow2(size_t pow2, float loadf = DEFAULT_LOAD_FACTOR)
     {
-        _gap = (size_type)(loadf * pow2);
         _size = 0;
         _capacity = pow2 - 1;
-        _elements = (storage_type*)calloc(pow2, sizeof(storage_type));
+        _gap = (size_type)(loadf * pow2);
         _erased = 0;
+        _elements = (storage_type*)calloc(pow2, sizeof(storage_type));
         _loadlf = loadf;
         if (HRD_UNLIKELY(!_elements))
             throw_bad_alloc();
@@ -592,15 +592,13 @@ protected:
         }
     }
 
-    HRD_ALWAYS_INLINE void clear(std::true_type) noexcept
+    HRD_ALWAYS_INLINE void dtor(std::true_type) noexcept
     {
-        if (HRD_LIKELY(_capacity)) {
+        if (HRD_LIKELY(_capacity))
             free(_elements);
-            ctor_empty(_loadlf);
-        }
     }
 
-    HRD_ALWAYS_INLINE void clear(std::false_type) noexcept
+    HRD_ALWAYS_INLINE void dtor(std::false_type) noexcept
     {
         if (auto cnt = _size)
         {
@@ -618,6 +616,19 @@ protected:
             return;
 
         free(_elements);
+    }
+
+    HRD_ALWAYS_INLINE void clear(std::true_type) noexcept
+    {
+        if (HRD_LIKELY(_capacity)) {
+            free(_elements);
+            ctor_empty(_loadlf);
+        }
+    }
+
+    HRD_ALWAYS_INLINE void clear(std::false_type) noexcept
+    {
+        dtor(std::false_type());
         ctor_empty(_loadlf);
     }
 
@@ -663,11 +674,12 @@ protected:
             }
         }
 
-        _gap = (size_type)(_loadlf * (pow2 + 1));
         if (_capacity)
             free(_elements);
+
         _capacity = pow2;
         _erased = 0;
+        _gap = (size_type)(_loadlf * (pow2 + 1));
         _elements = elements;
     }
 
@@ -691,8 +703,13 @@ protected:
                         break;
                 }
             }
+            _size = tmp._size;
+            tmp._size = 0; //prevent elements dtor call
         }
-        swap(tmp);
+        std::swap(_capacity, tmp._capacity);
+        _erased = 0;
+        _gap = tmp._gap;
+        std::swap(_elements, tmp._elements);
     }
 
     HRD_ALWAYS_INLINE void resize_pow2(size_t pow2) {
@@ -888,7 +905,7 @@ protected:
     HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace_(K&& k, Args&& args)
 #endif //C++-11 support
     {
-        if (HRD_UNLIKELY(_size + _erased >= this->_gap))
+        if (HRD_UNLIKELY(_size + _erased >= _gap))
             resize_pow2(2 * (_capacity + 1));
 
         storage_type* empty_spot = nullptr;

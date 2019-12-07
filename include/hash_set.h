@@ -1,5 +1,5 @@
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
-// version 1.2.15
+// version 1.2.16
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -271,9 +271,12 @@ protected:
                         break;
                 }
             }
+            _size = tmp._size;
+            tmp._size = 0; //prevent elements dtor call
         }
-        static_assert(sizeof(*this) == sizeof(hash_base), "hash_base::swap should be used");
-        swap(tmp); //swap base members only
+        std::swap(_capacity, tmp._capacity);
+        std::swap(_elements, tmp._elements);
+        _erased = 0;
     }
 
     template<typename this_type>
@@ -568,16 +571,14 @@ protected:
     }
 
     template<class this_type>
-    HRD_ALWAYS_INLINE void clear(std::true_type) noexcept
+    HRD_ALWAYS_INLINE void dtor(std::true_type) noexcept
     {
-        if (HRD_LIKELY(_capacity)) {
+        if (HRD_LIKELY(_capacity))
             free(_elements);
-            ctor_empty();
-        }
     }
 
     template<class this_type>
-    HRD_ALWAYS_INLINE void clear(std::false_type) noexcept
+    HRD_ALWAYS_INLINE void dtor(std::false_type) noexcept
     {
         if (auto cnt = _size)
         {
@@ -598,6 +599,21 @@ protected:
             return;
 
         free(_elements);
+    }
+
+    template<class this_type>
+    HRD_ALWAYS_INLINE void clear(std::true_type) noexcept
+    {
+        if (HRD_LIKELY(_capacity)) {
+            free(_elements);
+            ctor_empty();
+        }
+    }
+
+    template<class this_type>
+    HRD_ALWAYS_INLINE void clear(std::false_type) noexcept
+    {
+        dtor<this_type>(std::false_type());
         ctor_empty();
     }
 
@@ -912,7 +928,7 @@ public:
 #endif
 
     ~hash_set() {
-        clear();
+        hash_base::dtor<this_type>(IS_TRIVIALLY_DESTRUCTIBLE());
     }
 
     static constexpr size_type max_size() noexcept {
@@ -1114,7 +1130,7 @@ public:
 #endif
 
     ~hash_map() {
-        clear();
+        hash_base::dtor<this_type>(IS_TRIVIALLY_DESTRUCTIBLE());
     }
 
     static constexpr size_type max_size() noexcept {
