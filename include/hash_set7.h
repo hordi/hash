@@ -417,7 +417,7 @@ public:
     size_type capacity() const noexcept { return _capacity; }
 
     static constexpr size_type max_size() noexcept {
-        return (size_type(1) << (sizeof(size_type) * 8 - 1)) / (sizeof(storage_type));
+        return (size_type(1) << (sizeof(size_type) * 8 - 1)) / sizeof(storage_type);
     }
 
     bool empty() const noexcept { return !_size; }
@@ -431,7 +431,7 @@ public:
     }
 
     void max_load_factor(float val) noexcept {
-        if (val >= 0.2f && val < 0.995f) {
+        if (val >= 0.2f && val <= 0.995f) {
             _gap = (size_type)(val * (_capacity + 1));
             _loadlf = val;
         }
@@ -439,7 +439,7 @@ public:
 
     HRD_ALWAYS_INLINE void reserve(size_type hint) {
         hint *= 2;
-        if (HRD_LIKELY(hint > this->_capacity))
+        if (HRD_LIKELY(hint > _capacity))
             resize_pow2(hash_utils::roundup(hint));
     }
 
