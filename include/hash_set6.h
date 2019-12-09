@@ -1,7 +1,7 @@
 #pragma once
 
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
-// version 1.2.16
+// version 1.2.17
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -36,11 +36,15 @@
 #  define HRD_ALWAYS_INLINE __forceinline
 #  define HRD_LIKELY(condition) condition
 #  define HRD_UNLIKELY(condition) condition
+#  define HRD_ATTR_NOINLINE __declspec(noinline)
+#  define HRD_ATTR_NORETURN __declspec(noreturn)
 #else
 #  include <x86intrin.h>
 #  define HRD_ALWAYS_INLINE __attribute__((always_inline)) inline
 #  define HRD_LIKELY(condition) __builtin_expect(condition, 1)
 #  define HRD_UNLIKELY(condition) __builtin_expect(condition, 0)
+#  define HRD_ATTR_NOINLINE __attribute__((noinline))
+#  define HRD_ATTR_NORETURN __attribute__((noreturn))
 #endif
 
 namespace hrd6 {
@@ -70,25 +74,25 @@ public:
     {
     public:
         hash_eql() {}
-        hash_eql(const Hasher & h, const KeyEql & eql) :Hasher(h), KeyEql(eql) {}
-        hash_eql(const hash_eql & r) : Hasher(r), KeyEql(r) {}
-        hash_eql(hash_eql && r) noexcept : Hasher(std::move(r)), KeyEql(std::move(r)) {}
+        hash_eql(const Hasher& h, const KeyEql& eql) : Hasher(h), KeyEql(eql) {}
+        hash_eql(const hash_eql& r) : Hasher(r), KeyEql(r) {}
+        hash_eql(hash_eql&& r) noexcept : Hasher(std::move(r)), KeyEql(std::move(r)) {}
 
-        hash_eql & operator=(const hash_eql & r) {
+        hash_eql& operator=(const hash_eql& r) {
             hash_eql(r).swap(*this);
             return *this;
         }
 
-        hash_eql & operator=(hash_eql && r) noexcept {
+        hash_eql& operator=(hash_eql&& r) noexcept {
             const_cast<Hasher&>(hasher()) = std::move(r);
             const_cast<KeyEql&>(keyeql()) = std::move(r);
             return *this;
         }
 
-        HRD_ALWAYS_INLINE size_t operator()(const Key & k) const { return static_cast<size_t>(hasher()(k)); }
-        HRD_ALWAYS_INLINE bool operator()(const Key & k1, const Key & k2) const { return keyeql()(k1, k2); }
+        HRD_ALWAYS_INLINE size_t operator()(const Key& k) const { return static_cast<size_t>(hasher()(k)); }
+        HRD_ALWAYS_INLINE bool operator()(const Key& k1, const Key& k2) const { return keyeql()(k1, k2); }
 
-        void swap(hash_eql & r) noexcept {
+        void swap(hash_eql& r) noexcept {
             std::swap(const_cast<Hasher&>(hasher()), const_cast<Hasher&>(r.hasher()));
             std::swap(const_cast<KeyEql&>(keyeql()), const_cast<KeyEql&>(r.keyeql()));
         }
@@ -124,37 +128,28 @@ protected:
         return size_t(1) << (idx + 1);
     }
 
-#ifdef _MSC_VER
-    __declspec(noreturn, noinline)
-#else
-    __attribute__((noinline, noreturn))
-#endif
-    static void throw_bad_alloc() {
+    HRD_ATTR_NOINLINE HRD_ATTR_NORETURN static void throw_bad_alloc() {
         throw std::bad_alloc();
     }
 
-#ifdef _MSC_VER
-    __declspec(noreturn, noinline)
-#else
-    __attribute__((noinline, noreturn))
-#endif
-    static void throw_length_error() {
+    HRD_ATTR_NOINLINE HRD_ATTR_NORETURN static void throw_length_error() {
         throw std::length_error("size exceeded");
     }
 
-    //if any exception happens during any new-in-place call ::clear
+    //if any exception happens during any new-in-place call ::dtor
     template<typename this_type>
-    class clear_in_dtor_if_throw_constructible {
+    class dtor_if_throw_constructible {
     public:
-        inline clear_in_dtor_if_throw_constructible(this_type& ref) noexcept { set(&ref, typename this_type::IS_NOTHROW_CONSTRUCTIBLE()); }
-        inline ~clear_in_dtor_if_throw_constructible() { clear(typename this_type::IS_NOTHROW_CONSTRUCTIBLE()); }
+        inline dtor_if_throw_constructible(this_type& ref) noexcept { set(&ref, typename this_type::IS_NOTHROW_CONSTRUCTIBLE()); }
+        inline ~dtor_if_throw_constructible() noexcept { clear(typename this_type::IS_NOTHROW_CONSTRUCTIBLE()); }
 
-        inline void reset() { set(nullptr, typename this_type::IS_NOTHROW_CONSTRUCTIBLE()); }
+        inline void reset() noexcept { set(nullptr, typename this_type::IS_NOTHROW_CONSTRUCTIBLE()); }
     private:
-        inline void set(this_type*, std::true_type) {}
-        inline void set(this_type* ptr, std::false_type) { _this = ptr; }
-        inline void clear(std::true_type) {}
-        inline void clear(std::false_type) { if (_this) _this->clear(); }
+        inline void set(this_type*, std::true_type) noexcept {}
+        inline void set(this_type* ptr, std::false_type) noexcept { _this = ptr; }
+        inline void clear(std::true_type) noexcept {}
+        inline void clear(std::false_type) noexcept { if (_this) dtor(); }
+        HRD_ATTR_NOINLINE void dtor() noexcept { _this->dtor(typename this_type::IS_TRIVIALLY_DESTRUCTIBLE()); }
         this_type* _this;
     };
 
@@ -285,7 +280,7 @@ public:
 
 protected:
     typedef hash_eql<Key, Hash, Pred>   hash_pred;
-    friend clear_in_dtor_if_throw_constructible<this_type>;
+    friend dtor_if_throw_constructible<this_type>;
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     typedef std::integral_constant<bool, std::is_trivially_copyable<key_type>::value && std::is_trivially_copyable<T>::value> IS_TRIVIALLY_COPYABLE;
@@ -386,22 +381,49 @@ protected:
     hash_base() noexcept {
         ctor_empty();
     }
+    
     hash_base(const hash_base& r) :
         hash_pred(r)
     {
         ctor_copy(r, IS_TRIVIALLY_COPYABLE());
     }
+    
     hash_base(hash_base&& r) noexcept :
         hash_pred(std::move(r))
     {
         ctor_move(std::move(r));
     }
+    
     hash_base(const hasher& hf, const key_equal& eql) :
         hash_pred(hf, eql)
     {}
+    
+    hash_base(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
+        hash_pred(hf, eql)
+    {
+        // |1 to prevent 0-usage (produces _capacity = 0 finally)
+        ctor_pow2(roundup((hint_size | 1) * 2));
+    }
+
+    template<typename Iter>
+    hash_base(Iter first, Iter last, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
+        hash_pred(hf, eql)
+    {
+        ctor_iters(first, last, Iter::iterator_category());
+    }
+
+#if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
+    hash_base(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
+        hash_pred(hf, eql)
+    {
+        ctor_init_list(lst);
+    }
+#endif
+
     hash_base(size_type pow2, bool) {
         ctor_pow2(pow2);
     }
+
     ~hash_base() noexcept {
         dtor(IS_TRIVIALLY_DESTRUCTIBLE());
     }
@@ -461,6 +483,19 @@ public:
     HRD_ALWAYS_INLINE size_type count(const key_type& k) const noexcept {
         return find_(k) != nullptr;
     }
+
+    template <class P>
+    HRD_ALWAYS_INLINE std::pair<iterator, bool> insert(P&& val) {
+        return insert_(std::forward<P>(val));
+    }
+
+#if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
+    void insert(std::initializer_list<value_type> lst)
+    {
+        for (auto i = lst.begin(), e = lst.end(); i != e; ++i)
+            insert_(*i);
+    }
+#endif
 
     /*! Can invalidate iterators.
     * \params it - Iterator pointing to a single element to be removed
@@ -683,7 +718,7 @@ protected:
 
     void resize_pow2(size_t pow2, std::false_type) //IS_TRIVIALLY_COPYABLE
     {
-        this_type tmp(pow2, false);
+        this_type tmp(pow2--, false);
         if (HRD_LIKELY(_size)) //rehash
         {
             for (storage_type* p = (storage_type*)_elements;; ++p)
@@ -704,7 +739,8 @@ protected:
             _size = tmp._size;
             tmp._size = 0; //prevent elements dtor call
         }
-        std::swap(_capacity, tmp._capacity);
+        tmp._capacity = _capacity;
+        _capacity = pow2;
         std::swap(_elements, tmp._elements);
         _erased = 0;
     }
@@ -748,7 +784,7 @@ protected:
 
     HRD_ALWAYS_INLINE void ctor_copy_1(const this_type& r, std::false_type) //IS_NOTHROW_CONSTRUCTIBLE == false
     {
-        clear_in_dtor_if_throw_constructible<this_type> tmp(*reinterpret_cast<this_type*>(this));
+        dtor_if_throw_constructible<this_type> tmp(*reinterpret_cast<this_type*>(this));
         ctor_copy_1(r, std::true_type());
 
         tmp.reset();
@@ -777,7 +813,7 @@ protected:
     HRD_ALWAYS_INLINE void ctor_init_list(std::initializer_list<value_type> lst)
     {
         ctor_pow2(roundup((lst.size() | 1) * 2));
-        clear_in_dtor_if_throw_constructible<this_type> tmp(*this);
+        dtor_if_throw_constructible<this_type> tmp(*this);
         ctor_insert_(lst.begin(), lst.end(), std::true_type());
 
         tmp.reset();
@@ -824,7 +860,7 @@ protected:
     HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, std::random_access_iterator_tag)
     {
         ctor_pow2(roundup((std::distance(first, last) | 1) * 2));
-        clear_in_dtor_if_throw_constructible<this_type> tmp(*this);
+        dtor_if_throw_constructible<this_type> tmp(*this);
         ctor_insert_(first, last, std::true_type());
 
         tmp.reset();
@@ -833,7 +869,7 @@ protected:
     template<typename Iter, typename XXX>
     HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, XXX)
     {
-        clear_in_dtor_if_throw_constructible<this_type> tmp(*this);
+        dtor_if_throw_constructible<this_type> tmp(*this);
         ctor_empty();
         ctor_insert_(first, last, std::false_type());
 
@@ -970,10 +1006,10 @@ public:
     typedef const key_type              value_type;
     typedef value_type&                 reference;
     typedef const value_type&           const_reference;
-    using typename super_type::size_type;
-public:
     typedef typename super_type::iterator iterator;
     typedef typename super_type::const_iterator const_iterator;
+    using typename super_type::size_type;
+    using super_type::insert;
 
     hash_set() {}
 
@@ -986,25 +1022,18 @@ public:
     {}
 
     hash_set(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        super_type(hf, eql)
-    {
-        // |1 to prevent 0-usage (produces _capacity = 0 finally)
-        super_type::ctor_pow2(hash_utils::roundup((hint_size | 1) * 2));
-    }
+        super_type(hint_size, hf, eql)
+    {}
 
     template<typename Iter>
     hash_set(Iter first, Iter last, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        super_type(hf, eql)
-    {
-        super_type::ctor_iters(first, last, Iter::iterator_category());
-    }
+        super_type(first, last, hf, eql)
+    {}
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     hash_set(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        super_type(hf, eql)
-    {
-        super_type::ctor_init_list(lst);
-    }
+        super_type(lst, hf, eql)
+    {}
 #endif
 
     ~hash_set() {}
@@ -1016,19 +1045,6 @@ public:
     HRD_ALWAYS_INLINE std::pair<iterator, bool> insert(const key_type& val) {
         return super_type::insert_(val);
     }
-
-    template<class P>
-    HRD_ALWAYS_INLINE std::pair<iterator, bool> insert(P&& val) {
-        return super_type::insert_(std::forward<P>(val));
-    }
-
-#if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
-    void insert(std::initializer_list<value_type> lst)
-    {
-        for (auto i = lst.begin(), e = lst.end(); i != e; ++i)
-            super_type::insert_(*i);
-    }
-#endif
 
     template<class K>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace(K&& val) {
@@ -1060,48 +1076,41 @@ public:
     typedef Hash                                    hasher;
     typedef Pred                                    key_equal;
     typedef std::pair<const key_type, mapped_type>  value_type;
-    typedef value_type& reference;
-    typedef const value_type& const_reference;
+    typedef value_type&                             reference;
+    typedef const value_type&                       const_reference;
+    typedef typename super_type::iterator           iterator;
+    typedef typename super_type::const_iterator     const_iterator;
     using typename super_type::size_type;
-public:
-    typedef typename super_type::iterator iterator;
-    typedef typename super_type::const_iterator const_iterator;
+    using super_type::insert;
 
     hash_map() {}
 
-    hash_map(const this_type& r) :
+    hash_map(const hash_map& r) :
         super_type(r)
     {}
 
-    hash_map(this_type&& r) noexcept :
+    hash_map(hash_map&& r) noexcept :
         super_type(std::move(r))
     {}
 
     hash_map(size_type hint_size, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        super_type(hf, eql)
-    {
-        // |1 to prevent 0-usage (produces _capacity = 0 finally)
-        super_type::ctor_pow2(hash_utils::roundup((hint_size | 1) * 2));
-    }
+        super_type(hint_size, hf, eql)
+    {}
 
     template<typename Iter>
     hash_map(Iter first, Iter last, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        super_type(hf, eql)
-    {
-        super_type::ctor_iters(first, last, Iter::iterator_category());
-    }
+        super_type(first, last, hf, eql)
+    {}
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     hash_map(std::initializer_list<value_type> lst, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
-        super_type(hf, eql)
-    {
-        super_type::ctor_init_list(lst);
-    }
+        super_type(lst, hf, eql)
+    {}
 #endif
 
     ~hash_map() {}
 
-    void swap(this_type& r) noexcept {
+    void swap(hash_map& r) noexcept {
         super_type::swap(r);
     }
 
@@ -1109,18 +1118,7 @@ public:
         return super_type::insert_(val);
     }
 
-    template <class P>
-    HRD_ALWAYS_INLINE std::pair<typename super_type::iterator, bool> insert(P&& val) {
-        return super_type::insert_(std::forward<P>(val));
-    }
-
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
-    void insert(std::initializer_list<value_type> lst)
-    {
-        for (auto i = lst.begin(), e = lst.end(); i != e; ++i)
-            super_type::insert_(std::move(*i));
-    }
-
     template<class... Args>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace(const Key& key, Args&&... args) {
         return super_type::emplace_(key, std::forward<Args>(args)...);
@@ -1148,7 +1146,7 @@ public:
     }
 
     HRD_ALWAYS_INLINE hash_map& operator=(hash_map&& r) noexcept {
-        super_type::swap(r);
+        swap(r);
         return *this;
     }
 

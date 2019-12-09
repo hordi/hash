@@ -1,5 +1,5 @@
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
-// version 1.2.16
+// version 1.2.17
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -35,11 +35,15 @@
 #  define HRD_ALWAYS_INLINE __forceinline
 #  define HRD_LIKELY(condition) condition
 #  define HRD_UNLIKELY(condition) condition
+#  define HRD_ATTR_NOINLINE __declspec(noinline)
+#  define HRD_ATTR_NORETURN __declspec(noreturn)
 #else
 #  include <x86intrin.h>
 #  define HRD_ALWAYS_INLINE __attribute__((always_inline)) inline
 #  define HRD_LIKELY(condition) __builtin_expect(condition, 1)
 #  define HRD_UNLIKELY(condition) __builtin_expect(condition, 0)
+#  define HRD_ATTR_NOINLINE __attribute__((noinline))
+#  define HRD_ATTR_NORETURN __attribute__((noreturn))
 #endif
 
 namespace hrd {
@@ -116,7 +120,6 @@ public:
         HRD_ALWAYS_INLINE const KeyEql& keyeql() const noexcept { return *this; }
     };
 
-
 protected:
     //2 bits used as data-marker
     enum { ACTIVE_MARK = 0x1, DELETED_MARK = 0x2 };
@@ -135,25 +138,26 @@ protected:
 
     constexpr static const uint32_t OFFSET_BASIS = 2166136261;
 
-    //if any exception happens during any new-in-place call ::clear
+    //if any exception happens during any new-in-place call ::dtor
     template<typename this_type>
-    class clear_in_dtor_if_throw_constructible {
+    class dtor_if_throw_constructible {
     public:
-        inline clear_in_dtor_if_throw_constructible(this_type& ref) noexcept { set(&ref, typename this_type::IS_NOTHROW_CONSTRUCTIBLE()); }
-        inline ~clear_in_dtor_if_throw_constructible() { clear(typename this_type::IS_NOTHROW_CONSTRUCTIBLE());  }
+        inline dtor_if_throw_constructible(this_type& ref) noexcept { set(&ref, typename this_type::IS_NOTHROW_CONSTRUCTIBLE()); }
+        inline ~dtor_if_throw_constructible() noexcept { clear(typename this_type::IS_NOTHROW_CONSTRUCTIBLE());  }
 
-        inline void reset() { set(nullptr, typename this_type::IS_NOTHROW_CONSTRUCTIBLE()); }
+        inline void reset() noexcept { set(nullptr, typename this_type::IS_NOTHROW_CONSTRUCTIBLE()); }
     private:
-        inline void set(this_type*, std::true_type) {}
-        inline void set(this_type* ptr, std::false_type) { _this = ptr; }
-        inline void clear(std::true_type) {}
-        inline void clear(std::false_type) { if (_this) _this->clear(); }
+        inline void set(this_type*, std::true_type) noexcept {}
+        inline void set(this_type* ptr, std::false_type) noexcept { _this = ptr; }
+        inline void clear(std::true_type) noexcept {}
+        inline void clear(std::false_type) noexcept { if (_this) dtor(); }
+        HRD_ATTR_NOINLINE void dtor() noexcept { _this->dtor(typename this_type::IS_TRIVIALLY_DESTRUCTIBLE(), _this); }
         this_type* _this;
     };
 
     template<size_t SIZE>
     static uint32_t hash_1(const void* ptr) noexcept {
-        return hash_base::fnv_1a((const char*)ptr, SIZE);
+        return fnv_1a((const char*)ptr, SIZE);
     }
 
     constexpr static HRD_ALWAYS_INLINE uint32_t fnv_1a(const char* key, size_t len, uint32_t hash32 = OFFSET_BASIS) noexcept
@@ -251,7 +255,7 @@ protected:
     template<typename this_type>
     void resize_pow2(size_t pow2, std::false_type /*non-trivial data*/)
     {
-        this_type tmp(pow2, false);
+        this_type tmp(pow2--, false);
         if (HRD_LIKELY(_size)) //rehash
         {
             typedef typename this_type::storage_type StorageType;
@@ -275,7 +279,8 @@ protected:
             _size = tmp._size;
             tmp._size = 0; //prevent elements dtor call
         }
-        std::swap(_capacity, tmp._capacity);
+        tmp._capacity = _capacity;
+        _capacity = pow2;
         std::swap(_elements, tmp._elements);
         _erased = 0;
     }
@@ -305,21 +310,11 @@ protected:
         return size_t(1) << (idx + 1);
     }
 
-#ifdef _MSC_VER
-    __declspec(noreturn, noinline)
-#else
-    __attribute__((noinline, noreturn))
-#endif
-    static void throw_bad_alloc() {
+    HRD_ATTR_NOINLINE HRD_ATTR_NORETURN static void throw_bad_alloc() {
         throw std::bad_alloc();
     }
 
-#ifdef _MSC_VER
-    __declspec(noreturn, noinline)
-#else
-    __attribute__((noinline, noreturn))
-#endif
-     static void throw_length_error() {
+    HRD_ATTR_NOINLINE HRD_ATTR_NORETURN static void throw_length_error() {
         throw std::length_error("size exceeded");
     }
 
@@ -435,8 +430,7 @@ protected:
     template<typename this_type>
     HRD_ALWAYS_INLINE void ctor_copy_1(const this_type& r, std::false_type) //IS_NOTHROW_CONSTRUCTIBLE == false
     {
-        clear_in_dtor_if_throw_constructible<this_type> tmp(*reinterpret_cast<this_type*>(this));
-
+        dtor_if_throw_constructible<this_type> tmp(*reinterpret_cast<this_type*>(this));
         ctor_copy_1(r, std::true_type());
 
         tmp.reset();
@@ -467,9 +461,7 @@ protected:
     HRD_ALWAYS_INLINE void ctor_init_list(std::initializer_list<typename this_type::value_type> lst, this_type& ref)
     {
         ctor_pow2(roundup((lst.size() | 1) * 2), sizeof(typename this_type::storage_type));
-
-        clear_in_dtor_if_throw_constructible<this_type> tmp(ref);
-
+        dtor_if_throw_constructible<this_type> tmp(ref);
         ctor_insert_(lst.begin(), lst.end(), ref, std::true_type());
 
         tmp.reset();
@@ -518,9 +510,7 @@ protected:
     HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, this_type& ref, std::random_access_iterator_tag)
     {
         ctor_pow2(roundup((std::distance(first, last) | 1) * 2), sizeof(typename this_type::storage_type));
-
-        clear_in_dtor_if_throw_constructible<this_type> tmp(ref);
-
+        dtor_if_throw_constructible<this_type> tmp(ref);
         ctor_insert_(first, last, ref, std::true_type());
 
         tmp.reset();
@@ -529,8 +519,7 @@ protected:
     template<typename Iter, class this_type, typename XXX>
     HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, this_type& ref, XXX)
     {
-        clear_in_dtor_if_throw_constructible<this_type> tmp(ref);
-
+        dtor_if_throw_constructible<this_type> tmp(ref);
         ctor_empty();
         ctor_insert_(first, last, ref, std::false_type());
 
@@ -572,14 +561,14 @@ protected:
     }
 
     template<class this_type>
-    HRD_ALWAYS_INLINE void dtor(std::true_type) noexcept
+    HRD_ALWAYS_INLINE void dtor(std::true_type, this_type*) noexcept
     {
         if (HRD_LIKELY(_capacity))
             free(_elements);
     }
 
     template<class this_type>
-    HRD_ALWAYS_INLINE void dtor(std::false_type) noexcept
+    HRD_ALWAYS_INLINE void dtor(std::false_type, this_type*) noexcept
     {
         if (auto cnt = _size)
         {
@@ -614,7 +603,7 @@ protected:
     template<class this_type>
     HRD_ALWAYS_INLINE void clear(std::false_type) noexcept
     {
-        dtor<this_type>(std::false_type());
+        dtor(std::false_type(), (this_type*)nullptr);
         ctor_empty();
     }
 
@@ -894,13 +883,13 @@ public:
         ctor_empty();
     }
 
-    hash_set(const this_type& r) :
+    hash_set(const hash_set& r) :
         hash_pred(r)
     {
         ctor_copy(r, IS_TRIVIALLY_COPYABLE());
     }
 
-    hash_set(this_type&& r) noexcept :
+    hash_set(hash_set&& r) noexcept :
         hash_pred(std::move(r))
     {
         ctor_move(std::move(r));
@@ -929,7 +918,7 @@ public:
 #endif
 
     ~hash_set() {
-        hash_base::dtor<this_type>(IS_TRIVIALLY_DESTRUCTIBLE());
+        hash_base::dtor(IS_TRIVIALLY_DESTRUCTIBLE(), this);
     }
 
     static constexpr size_type max_size() noexcept {
@@ -1096,13 +1085,13 @@ public:
         ctor_empty();
     }
 
-    hash_map(const this_type& r) :
+    hash_map(const hash_map& r) :
         hash_pred(r)
     {
         ctor_copy(r, IS_TRIVIALLY_COPYABLE());
     }
 
-    hash_map(this_type&& r) noexcept :
+    hash_map(hash_map&& r) noexcept :
         hash_pred(std::move(r))
     {
         ctor_move(std::move(r));
@@ -1131,7 +1120,7 @@ public:
 #endif
 
     ~hash_map() {
-        hash_base::dtor<this_type>(IS_TRIVIALLY_DESTRUCTIBLE());
+        hash_base::dtor(IS_TRIVIALLY_DESTRUCTIBLE(), this);
     }
 
     static constexpr size_type max_size() noexcept {
@@ -1172,7 +1161,7 @@ public:
         hash_base::clear<this_type>(IS_TRIVIALLY_DESTRUCTIBLE());
     }
 
-    void swap(this_type& r) noexcept
+    void swap(hash_map& r) noexcept
     {
         hash_base::swap(r);
         hash_pred::swap(r);
