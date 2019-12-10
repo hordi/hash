@@ -1020,7 +1020,7 @@ public:
         return erase_(k, *this);
     }
 
-    HRD_ALWAYS_INLINE void shrink_to_fit() {
+    void shrink_to_fit() {
         hash_base::shrink_to_fit<this_type>();
     }
 
@@ -1161,50 +1161,42 @@ public:
         hash_base::clear<this_type>(IS_TRIVIALLY_DESTRUCTIBLE());
     }
 
-    void swap(hash_map& r) noexcept
-    {
+    void swap(hash_map& r) noexcept {
         hash_base::swap(r);
         hash_pred::swap(r);
     }
 
-    /*! Can invalidate iterators. */
     HRD_ALWAYS_INLINE std::pair<iterator, bool> insert(const value_type& val) {
         return insert_(val, const_cast<this_type&>(*this));
     }
 
-    /*! Can invalidate iterators. */
     template <class P>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> insert(P&& val) {
         return insert_(std::forward<P>(val), const_cast<this_type&>(*this));
     }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
-    /*! Can invalidate iterators. */
     void insert(std::initializer_list<value_type> lst)
     {
         for (auto i = lst.begin(), e = lst.end(); i != e; ++i)
             insert_(*i, *this);
     }
 
-    /*! Can invalidate iterators. */
     template<class... Args>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace(const Key& key, Args&&... args) {
         return emplace_(key, std::forward<Args>(args)...);
     }
 
-    /*! Can invalidate iterators. */
     template<class K, class... Args>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace(K&& key, Args&&... args) {
         return emplace_(std::forward<K>(key), std::forward<Args>(args)...);
     }
 #else
-    /*! Can invalidate iterators. */
     template<class Args>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace(const Key& key, Args&& args) {
         return emplace_(key, std::forward<Args>(args));
     }
 
-    /*! Can invalidate iterators. */
     template<class K, class Args>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace(K&& key, Args&& args) {
         return emplace_(std::forward<K>(key), std::forward<Args>(args));
@@ -1223,7 +1215,7 @@ public:
         return find_(k, *this) != nullptr;
     }
 
-    /*! Can invalidate iterators.
+    /*! Doesn't invalidate iterators.
     * \params it - Iterator pointing to a single element to be removed
     * \return return an iterator pointing to the position immediately following of the element erased
     */
@@ -1231,7 +1223,7 @@ public:
         return erase_<this_type>(it);
     }
 
-    /*! Can invalidate iterators.
+    /*! Doesn't invalidate iterators.
     * \params k - Key of the element to be erased
     * \return 1 - if element erased and zero otherwise
     */
