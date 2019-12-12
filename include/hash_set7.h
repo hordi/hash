@@ -3,7 +3,7 @@
 //LOAD_FACTOR implementation
 
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
-// version 1.2.17
+// version 1.2.18
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -105,8 +105,7 @@ public:
     };
 
 protected:
-    //2 bits used as data-marker
-    enum { ACTIVE_MARK = 0x1, DELETED_MARK = 0x2 };
+    enum { DELETED_MARK = 0x1 };
 
     constexpr static const uint32_t OFFSET_BASIS = 2166136261;
     constexpr static const float DEFAULT_LOAD_FACTOR = 0.5f;
@@ -179,7 +178,7 @@ protected:
     }
 
     HRD_ALWAYS_INLINE static uint32_t make_mark(size_t h) noexcept {
-        return static_cast<uint32_t>(h | ACTIVE_MARK);
+        return static_cast<uint32_t>(h > DELETED_MARK ? h : (DELETED_MARK + 1));
     }
 
 #ifdef _MSC_VER
@@ -327,7 +326,7 @@ protected:
                 if (HRD_LIKELY(_cnt))
                 {
                     --_cnt;
-                    while (HRD_LIKELY(!((++_ptr)->mark & base::ACTIVE_MARK)))
+                    while (HRD_LIKELY((++_ptr)->mark <= base::DELETED_MARK))
                         ;
                 }
                 else
@@ -517,7 +516,7 @@ public:
 
             if (HRD_UNLIKELY(ret._cnt)) {
                 for (--ret._cnt;;) {
-                    if (HRD_UNLIKELY((++ret._ptr)->mark & ACTIVE_MARK))
+                    if (HRD_UNLIKELY((++ret._ptr)->mark > DELETED_MARK))
                         return ret;
                 }
             }
@@ -543,7 +542,7 @@ public:
         auto pm = (storage_type*)_elements;
         if (auto cnt = _size) {
             for (--cnt;; ++pm) {
-                if (HRD_UNLIKELY(pm->mark & ACTIVE_MARK))
+                if (HRD_UNLIKELY(pm->mark > DELETED_MARK))
                     return iterator(pm, cnt);
             }
         }
@@ -621,7 +620,6 @@ protected:
             throw_bad_alloc();
     }
 
-    template<typename storage_type>
     HRD_ALWAYS_INLINE void deleteElement(storage_type* ptr) noexcept
     {
         ptr->data.~value_type();
@@ -650,7 +648,7 @@ protected:
         {
             for (storage_type* p = (storage_type*)_elements;; ++p)
             {
-                if (HRD_UNLIKELY(p->mark & ACTIVE_MARK)) {
+                if (HRD_UNLIKELY(p->mark > DELETED_MARK)) {
                     cnt--;
                     p->data.~value_type();
                     if (HRD_UNLIKELY(!cnt))
@@ -703,7 +701,7 @@ protected:
         {
             for (storage_type* p = (storage_type*)_elements;; ++p)
             {
-                if (HRD_UNLIKELY(p->mark & ACTIVE_MARK))
+                if (HRD_UNLIKELY(p->mark > DELETED_MARK))
                 {
                     for (size_t i = p->mark;;)
                     {
@@ -736,7 +734,7 @@ protected:
         {
             for (storage_type* p = (storage_type*)_elements;; ++p)
             {
-                if (HRD_UNLIKELY(p->mark & ACTIVE_MARK)) {
+                if (HRD_UNLIKELY(p->mark > DELETED_MARK)) {
                     value_type& r = p->data;
                     tmp.insert_unique(std::move(*p));
                     r.~value_type();
@@ -785,7 +783,7 @@ protected:
         size_t cnt = r._size;
         for (const storage_type* p = (const storage_type*)r._elements;; ++p)
         {
-            if (HRD_UNLIKELY(p->mark & ACTIVE_MARK)) {
+            if (HRD_UNLIKELY(p->mark > DELETED_MARK)) {
                 insert_unique(*p);
                 if (HRD_UNLIKELY(!--cnt))
                     break;
@@ -894,8 +892,8 @@ protected:
             resize_pow2(2 * (_capacity + 1));
 
         storage_type* empty_spot = nullptr;
-        uint32_t deleted_mark = hash_utils::DELETED_MARK;
-        const uint32_t mark = hash_utils::make_mark(hash_pred::operator()(get_key(val)));
+        uint32_t deleted_mark = DELETED_MARK;
+        const uint32_t mark = make_mark(hash_pred::operator()(get_key(val)));
 
         for (size_t i = mark;;)
         {
@@ -956,8 +954,8 @@ protected:
             resize_pow2(2 * (_capacity + 1));
 
         storage_type* empty_spot = nullptr;
-        uint32_t deleted_mark = hash_utils::DELETED_MARK;
-        const uint32_t mark = hash_utils::make_mark(hash_pred::operator()(k));
+        uint32_t deleted_mark = DELETED_MARK;
+        const uint32_t mark = make_mark(hash_pred::operator()(k));
 
         for (size_t i = mark;;)
         {

@@ -1,5 +1,7 @@
+#pragma once
+
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
-// version 1.2.17
+// version 1.2.18
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -24,7 +26,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
 #include <functional>
 #include <stdexcept>
 #include <cstdint>
@@ -121,8 +122,7 @@ public:
     };
 
 protected:
-    //2 bits used as data-marker
-    enum { ACTIVE_MARK = 0x1, DELETED_MARK = 0x2 };
+    enum { DELETED_MARK = 0x1 };
 
 #pragma pack(push, 4)
     template<class T>
@@ -178,7 +178,7 @@ protected:
     }
 
     HRD_ALWAYS_INLINE static uint32_t make_mark(size_t h) noexcept {
-        return static_cast<uint32_t>(h | ACTIVE_MARK);
+        return static_cast<uint32_t>(h > DELETED_MARK ? h : (DELETED_MARK + 1));
     }
 
 /*
@@ -228,7 +228,7 @@ protected:
         {
             for (typename this_type::storage_type* p = reinterpret_cast<typename this_type::storage_type*>(_elements);; ++p)
             {
-                if (HRD_UNLIKELY(p->mark & ACTIVE_MARK))
+                if (HRD_UNLIKELY(p->mark > DELETED_MARK))
                 {
                     for (size_t i = p->mark;;)
                     {
@@ -261,7 +261,7 @@ protected:
             typedef typename this_type::storage_type StorageType;
             for (StorageType* p = reinterpret_cast<StorageType*>(_elements);; ++p)
             {
-                if (HRD_UNLIKELY(p->mark & ACTIVE_MARK)) {
+                if (HRD_UNLIKELY(p->mark > DELETED_MARK)) {
                     typedef typename this_type::value_type VT;
 
                     VT& r = p->data;
@@ -337,7 +337,7 @@ protected:
                 if (HRD_LIKELY(_cnt))
                 {
                     --_cnt;
-                    while (HRD_LIKELY(!((++_ptr)->mark & base::ACTIVE_MARK)))
+                    while (HRD_LIKELY((++_ptr)->mark <= base::DELETED_MARK))
                         ;
                 }
                 else
@@ -419,7 +419,7 @@ protected:
         size_t cnt = r._size;
         for (const typename this_type::storage_type* p = reinterpret_cast<typename this_type::storage_type*>(r._elements);; ++p)
         {
-            if (HRD_UNLIKELY(p->mark & ACTIVE_MARK)) {
+            if (HRD_UNLIKELY(p->mark > DELETED_MARK)) {
                 insert_unique(*p, std::false_type());
                 if (HRD_UNLIKELY(!--cnt))
                     break;
@@ -577,7 +577,7 @@ protected:
 
             for (storage_type* p = reinterpret_cast<storage_type*>(_elements);; ++p)
             {
-                if (HRD_UNLIKELY(p->mark & ACTIVE_MARK)) {
+                if (HRD_UNLIKELY(p->mark > DELETED_MARK)) {
                     cnt--;
                     p->data.~data_type();
                     if (HRD_UNLIKELY(!cnt))
@@ -678,7 +678,7 @@ protected:
 
             if (HRD_UNLIKELY(ret._cnt)) {
                 for (--ret._cnt;;) {
-                    if (HRD_UNLIKELY((++ret._ptr)->mark & ACTIVE_MARK))
+                    if (HRD_UNLIKELY((++ret._ptr)->mark > DELETED_MARK))
                         return ret;
                 }
             }
@@ -704,7 +704,7 @@ protected:
         auto pm = reinterpret_cast<typename this_type::storage_type*>(_elements);
         if (auto cnt = _size) {
             for (--cnt;; ++pm) {
-                if (HRD_UNLIKELY(pm->mark & ACTIVE_MARK))
+                if (HRD_UNLIKELY(pm->mark > DELETED_MARK))
                     return typename this_type::iterator(pm, cnt);
             }
         }
