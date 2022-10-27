@@ -1,7 +1,7 @@
 #pragma once
 
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
-// version 1.2.18
+// version 1.2.19
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -906,7 +906,7 @@ public:
     hash_set(Iter first, Iter last, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
         hash_pred(hf, eql)
     {
-        ctor_iters(first, last, *this, Iter::iterator_category());
+        ctor_iters(first, last, *this, typename Iter::iterator_category());
     }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
@@ -1108,7 +1108,7 @@ public:
     hash_map(Iter first, Iter last, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
         hash_pred(hf, eql)
     {
-        ctor_iters(first, last, *this, Iter::iterator_category());
+        ctor_iters(first, last, *this, typename Iter::iterator_category());
     }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
