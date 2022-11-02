@@ -551,7 +551,8 @@ protected:
         _size--;
 
         //set DELETED_MARK only if next element not 0
-        const uint32_t next_mark = (HRD_LIKELY(ptr != (reinterpret_cast<storage_type*>(_elements) + _capacity)) ? ptr + 1 : reinterpret_cast<storage_type*>(_elements))->mark;
+        const storage_type* root = reinterpret_cast<storage_type*>(_elements);
+        const uint32_t next_mark = root[(ptr + 1 - root) & _capacity].mark;
         if (HRD_LIKELY(!next_mark))
             ptr->mark = 0;
         else {
