@@ -178,7 +178,8 @@ protected:
     }
 
     HRD_ALWAYS_INLINE static uint32_t make_mark(size_t h) noexcept {
-        return static_cast<uint32_t>(h > DELETED_MARK ? h : (DELETED_MARK + 1));
+		auto n = static_cast<uint32_t>(h);
+		return n > DELETED_MARK ? n : (DELETED_MARK + 1);
     }
 
 #ifdef _MSC_VER
