@@ -2,14 +2,14 @@
 
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
 //
-// This version supports uint32_t hashing (no hash calculation needed after reallocation/resize) 
+// This version supports full size_t hashing (calculates hash of each elements after any reallocation/resize) 
 // version 1.3.0
-// 
+//
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2019 Yurii Hordiienko
+// Copyright (c) 2018-2022 Yurii Hordiienko
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -65,7 +65,7 @@ public:
     };
 
     template<size_t SIZE>
-    static uint32_t hash(const void* ptr) noexcept {
+    static size_t hash(const void* ptr) noexcept {
         return hash_1<SIZE>(ptr);
     }
 
@@ -135,7 +135,7 @@ protected:
         StorageItem(const StorageItem& r) : data(r.data) { mark = r.mark; }
 
         uint32_t mark;
-        T data;
+		T data;
     };
 #pragma pack(pop)
 
@@ -159,7 +159,7 @@ protected:
     };
 
     template<size_t SIZE>
-    static uint32_t hash_1(const void* ptr) noexcept {
+    static size_t hash_1(const void* ptr) noexcept {
         return fnv_1a((const char*)ptr, SIZE);
     }
 
@@ -180,18 +180,19 @@ protected:
         return hash32 ^ (hash32 >> 16);
     }
 
-    HRD_ALWAYS_INLINE static uint32_t make_mark(size_t h) noexcept {
-		uint32_t n = static_cast<uint32_t>(h);
-		return (n > DELETED_MARK) ? n : (DELETED_MARK + 1);
+    HRD_ALWAYS_INLINE static size_t make_mark(size_t h) noexcept {
+        return uint32_t(h) > DELETED_MARK ? h : (DELETED_MARK + 1);
     }
 
 /*
     //space must be allocated before
-    template<class storage_type>
-    HRD_ALWAYS_INLINE void insert_unique(const storage_type& st, std::true_type) //trivial data
+    template<typename this_type, class storage_type>
+    HRD_ALWAYS_INLINE void insert_unique(const storage_type& st, const this_type& ref, std::true_type) //trivial data
     {
         _size++;
-        for (size_t i = st.mark;;)
+        size_t i = make_mark(ref(this_type::key_getter::get_key(st))); //YH
+
+        for (;;)
         {
             i &= _capacity;
             auto& r = reinterpret_cast<storage_type*>(_elements)[i++];
@@ -204,12 +205,13 @@ protected:
 */
 
     //space must be allocated before
-    template<typename V>
-    HRD_ALWAYS_INLINE void insert_unique(V&& st, std::false_type /*non-trivial data*/)
+    template<typename this_type, typename V>
+    HRD_ALWAYS_INLINE void insert_unique(V&& st, const this_type& ref, std::false_type /*non-trivial data*/)
     {
         typedef typename std::remove_reference<V>::type storage_type;
+        size_t i = make_mark(ref(this_type::key_getter::get_key(st))); //YH
 
-        for (size_t i = st.mark;;)
+        for (;;)
         {
             i &= _capacity;
             auto& r = reinterpret_cast<storage_type*>(_elements)[i++];
@@ -222,7 +224,7 @@ protected:
     }
 
     template<typename this_type>
-    void resize_pow2(size_t pow2, std::true_type /*trivial data*/)
+    void resize_pow2(size_t pow2, const this_type& ref, std::true_type /*trivial data*/)
     {
         typename this_type::storage_type* elements = (typename this_type::storage_type*)calloc(pow2--, sizeof(typename this_type::storage_type));
         if (HRD_UNLIKELY(!elements))
@@ -234,7 +236,8 @@ protected:
             {
                 if (HRD_UNLIKELY(p->mark > DELETED_MARK))
                 {
-                    for (size_t i = p->mark;;)
+                    size_t i = make_mark(ref(this_type::key_getter::get_key(p->data)));
+                    for (;;)
                     {
                         i &= pow2;
                         auto& r = elements[i++];
@@ -257,7 +260,7 @@ protected:
     }
 
     template<typename this_type>
-    void resize_pow2(size_t pow2, std::false_type /*non-trivial data*/)
+    void resize_pow2(size_t pow2, const this_type& ref, std::false_type /*non-trivial data*/)
     {
         this_type tmp(pow2--, false);
         if (HRD_LIKELY(_size)) //rehash
@@ -269,7 +272,7 @@ protected:
                     typedef typename this_type::value_type VT;
 
                     VT& r = p->data;
-                    tmp.insert_unique(std::move(*p), std::false_type());
+                    tmp.insert_unique(std::move(*p), ref, std::false_type());
                     r.~VT();
 
                     //next 2 lines to cover any exception that occurs during next tmp.insert_unique(std::move(r));
@@ -290,8 +293,8 @@ protected:
     }
 
     template<typename this_type>
-    HRD_ALWAYS_INLINE void resize_pow2(size_t pow2) {
-        resize_pow2<this_type>(pow2, typename this_type::IS_TRIVIALLY_COPYABLE());
+    HRD_ALWAYS_INLINE void resize_pow2(size_t pow2, const this_type& ref) {
+        resize_pow2(pow2, ref, typename this_type::IS_TRIVIALLY_COPYABLE());
     }
 
     HRD_ALWAYS_INLINE static size_t roundup(size_t sz) noexcept
@@ -394,19 +397,19 @@ protected:
     };
 
     template<typename this_type>
-    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r, std::true_type) //IS_TRIVIALLY_COPYABLE
+    HRD_ALWAYS_INLINE void ctor_copy(std::true_type, const this_type& ref) //IS_TRIVIALLY_COPYABLE
     {
         typedef typename this_type::storage_type StorageType;
 
-        if (HRD_LIKELY(r._size))
+        if (HRD_LIKELY(ref._size))
         {
-            size_t len = (r._capacity + 1) * sizeof(StorageType);
+            size_t len = (ref._capacity + 1) * sizeof(StorageType);
             _elements = malloc(len);
             if (HRD_LIKELY(!!_elements)) {
-                memcpy(_elements, r._elements, len);
-                _size = r._size;
-                _capacity = r._capacity;
-                _erased = r._erased;
+                memcpy(_elements, ref._elements, len);
+                _size = ref._size;
+                _capacity = ref._capacity;
+                _erased = ref._erased;
             }
             else {
                 throw_bad_alloc();
@@ -417,13 +420,13 @@ protected:
     }
 
     template<typename this_type>
-    HRD_ALWAYS_INLINE void ctor_copy_1(const this_type& r, std::true_type) //IS_NOTHROW_CONSTRUCTIBLE
+    HRD_ALWAYS_INLINE void ctor_copy_1(std::true_type, const this_type& ref) //IS_NOTHROW_CONSTRUCTIBLE
     {
-        size_t cnt = r._size;
-        for (const typename this_type::storage_type* p = reinterpret_cast<typename this_type::storage_type*>(r._elements);; ++p)
+        size_t cnt = ref._size;
+        for (const typename this_type::storage_type* p = reinterpret_cast<typename this_type::storage_type*>(ref._elements);; ++p)
         {
             if (HRD_UNLIKELY(p->mark > DELETED_MARK)) {
-                insert_unique(*p, std::false_type());
+                insert_unique(*p, ref, std::false_type());
                 if (HRD_UNLIKELY(!--cnt))
                     break;
             }
@@ -431,20 +434,20 @@ protected:
     }
 
     template<typename this_type>
-    HRD_ALWAYS_INLINE void ctor_copy_1(const this_type& r, std::false_type) //IS_NOTHROW_CONSTRUCTIBLE == false
+    HRD_ALWAYS_INLINE void ctor_copy_1(std::false_type, const this_type& ref) //IS_NOTHROW_CONSTRUCTIBLE == false
     {
         dtor_if_throw_constructible<this_type> tmp(*reinterpret_cast<this_type*>(this));
-        ctor_copy_1(r, std::true_type());
+        ctor_copy_1(std::true_type(), ref);
 
         tmp.reset();
     }
 
     template<typename this_type>
-    HRD_ALWAYS_INLINE void ctor_copy(const this_type& r, std::false_type) //IS_TRIVIALLY_COPYABLE
+    HRD_ALWAYS_INLINE void ctor_copy(std::false_type, const this_type& ref) //IS_TRIVIALLY_COPYABLE
     {
-        if (HRD_LIKELY(r._size)) {
-            ctor_pow2(r._capacity + 1, sizeof(typename this_type::storage_type));
-            ctor_copy_1(r, typename this_type::IS_NOTHROW_CONSTRUCTIBLE());
+        if (HRD_LIKELY(ref._size)) {
+            ctor_pow2(ref._capacity + 1, sizeof(typename this_type::storage_type));
+            ctor_copy_1(typename this_type::IS_NOTHROW_CONSTRUCTIBLE(), ref);
         }
         else
             ctor_empty();
@@ -474,8 +477,10 @@ protected:
     template<typename V, class this_type>
     HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::true_type /*resized*/)
     {
-        const uint32_t mark = make_mark(ref(this_type::key_getter::get_key(val)));
-        for (size_t i = mark;;)
+        size_t i = make_mark(ref(this_type::key_getter::get_key(val)));
+        const uint32_t mark = static_cast<uint32_t>(i);
+
+        for (;;)
         {
             i &= _capacity;
             typename this_type::storage_type* r = reinterpret_cast<typename this_type::storage_type*>(_elements) + i++;
@@ -498,7 +503,7 @@ protected:
     HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::false_type /*not resized yet*/)
     {
         if (HRD_UNLIKELY((_capacity - _size) <= _size))
-            resize_pow2<this_type>(2 * (_capacity + 1));
+            resize_pow2(2 * (_capacity + 1), ref);
 
         ctor_insert_(std::forward<V>(val), ref, std::true_type());
     }
@@ -528,6 +533,27 @@ protected:
 
         tmp.reset();
     }
+
+	template <typename Iter, class this_type, typename SIZE_PREPARED>
+	void insert_iters_(Iter first, Iter last, this_type& ref, SIZE_PREPARED) {
+		for (; first != last; ++first)
+            insert_(*first, ref, SIZE_PREPARED());
+	}
+
+	template<typename Iter, class this_type>
+	HRD_ALWAYS_INLINE void insert_iters(Iter first, Iter last, this_type& ref, std::random_access_iterator_tag)
+	{
+        size_t actual = std::distance(first, last) + _size;
+        if ((_erased + actual) >= (_capacity / 2))
+            resize_pow2(roundup((actual | 1) * 2), ref);
+
+        insert_iters_(first, last, ref, std::true_type());
+	}
+
+	template<typename Iter, class this_type, typename XXX>
+	HRD_ALWAYS_INLINE void insert_iters(Iter first, Iter last, this_type& ref, XXX) {
+        insert_iters_(first, last, ref, std::false_type());
+	}
 
     HRD_ALWAYS_INLINE void ctor_empty() noexcept
     {
@@ -596,7 +622,8 @@ protected:
     }
 
     template<class this_type>
-    HRD_ALWAYS_INLINE void clear(std::true_type) noexcept {
+    HRD_ALWAYS_INLINE void clear(std::true_type) noexcept
+    {
         if (HRD_LIKELY(_capacity)) {
             free(_elements);
             ctor_empty();
@@ -609,15 +636,16 @@ protected:
         ctor_empty();
     }
 
-	//all needed space should be allocated before
+    //all needed space should be allocated before
     template<typename V, class this_type>
     HRD_ALWAYS_INLINE std::pair<typename this_type::iterator, bool> insert_(V&& val, this_type& ref, std::true_type)
     {
         typename this_type::storage_type* empty_spot = nullptr;
         uint32_t deleted_mark = DELETED_MARK;
-        const uint32_t mark = make_mark(ref(this_type::key_getter::get_key(val)));
+        size_t i = make_mark(ref(this_type::key_getter::get_key(val)));
+        const uint32_t mark = static_cast<uint32_t>(i);
 
-        for (size_t i = mark;;)
+        for (;;)
         {
             i &= _capacity;
             typename this_type::storage_type* r = reinterpret_cast<typename this_type::storage_type*>(_elements) + i++;
@@ -648,22 +676,24 @@ protected:
         }
     }
 
-	//probe available size each time
+    //probe available size each time
 	template<typename V, class this_type>
 	HRD_ALWAYS_INLINE std::pair<typename this_type::iterator, bool> insert_(V&& val, this_type& ref, std::false_type)
 	{
 		size_t used = _erased + _size;
 		if (HRD_UNLIKELY(_capacity - used <= used))
-			resize_pow2<this_type>(2 * (_capacity + 1));
+			resize_pow2(2 * (_capacity + 1), ref);
 
         return insert_(std::forward<V>(val), ref, std::true_type());
 	}
 
     template<typename key_type, class this_type>
-    HRD_ALWAYS_INLINE typename this_type::storage_type* find_(const key_type& k, this_type& ref) const noexcept
+    HRD_ALWAYS_INLINE typename this_type::storage_type* find_(const key_type& k, const this_type& ref) const noexcept
     {
-        const uint32_t mark = make_mark(ref(k));
-        for (size_t i = mark;;)
+        size_t i = make_mark(ref(k));
+        const uint32_t mark = static_cast<uint32_t>(i);
+
+        for (;;)
         {
             i &= _capacity;
             auto& r = reinterpret_cast<typename this_type::storage_type*>(_elements)[i++];
@@ -722,12 +752,12 @@ protected:
     }
 
     template<class this_type>
-    void shrink_to_fit()
+    void shrink_to_fit(const this_type& ref)
     {
         if (HRD_LIKELY(_size)) {
             size_t pow2 = roundup(_size * 2);
             if (HRD_LIKELY(_erased || (_capacity + 1) != pow2))
-                resize_pow2<this_type>(pow2, typename this_type::IS_TRIVIALLY_COPYABLE());
+                resize_pow2(pow2, ref, typename this_type::IS_TRIVIALLY_COPYABLE());
         }
         else {
             clear<this_type>(std::true_type());
@@ -783,38 +813,34 @@ protected:
 };
 
 template<>
-HRD_ALWAYS_INLINE uint32_t hash_base::hash_1<1>(const void* ptr) noexcept {
-    uint32_t hash32 = (OFFSET_BASIS ^ (*(uint8_t*)ptr)) * 1607;
-    return hash32 ^ (hash32 >> 16);
+HRD_ALWAYS_INLINE size_t hash_base::hash_1<1>(const void* ptr) noexcept {
+	return (0xcbf29ce484222325ULL ^ (*(uint8_t*)ptr)) * 0x100000001b3ULL;
+    //uint32_t hash32 = (OFFSET_BASIS ^ (*(uint8_t*)ptr)) * 1607;
+    //return hash32 ^ (hash32 >> 16);
 }
 
 template<>
-HRD_ALWAYS_INLINE uint32_t hash_base::hash_1<2>(const void* ptr) noexcept {
-    uint32_t hash32 = (OFFSET_BASIS ^ (*(uint16_t*)ptr)) * 1607;
-    return hash32 ^ (hash32 >> 16);
+HRD_ALWAYS_INLINE size_t hash_base::hash_1<2>(const void* ptr) noexcept {
+    return (0xcbf29ce484222325ULL ^ (*(uint16_t*)ptr)) * 0x100000001b3ULL;
+
+    //uint32_t hash32 = (OFFSET_BASIS ^ (*(uint16_t*)ptr)) * 1607;
+    //return hash32 ^ (hash32 >> 16);
 }
 
 template<>
-HRD_ALWAYS_INLINE uint32_t hash_base::hash_1<4>(const void* ptr) noexcept {
-    return static_cast<uint32_t>(umul128(*(uint32_t*)ptr, 0xde5fb9d2630458e9ull));
-    /*
-        uint32_t hash32 = (OFFSET_BASIS ^ (*(uint32_t*)ptr)) * 1607;
-        return hash32 ^ (hash32 >> 16);
-    */
+HRD_ALWAYS_INLINE size_t hash_base::hash_1<4>(const void* ptr) noexcept {
+	return (0xcbf29ce484222325ULL ^ (*(uint32_t*)ptr)) * 0x100000001b3ULL;
+    //return umul128(*(uint32_t*)ptr, 0xde5fb9d2630458e9ull);
 }
 
 template<>
-HRD_ALWAYS_INLINE uint32_t hash_base::hash_1<8>(const void* ptr) noexcept {
-    return static_cast<uint32_t>(umul128(*(uint64_t*)ptr, 0xde5fb9d2630458e9ull));
-    /*
-        uint32_t* key = (uint32_t*)ptr;
-        uint32_t hash32 = (((OFFSET_BASIS ^ key[0]) * 1607) ^ key[1]) * 1607;
-        return hash32 ^ (hash32 >> 16);
-    */
+HRD_ALWAYS_INLINE size_t hash_base::hash_1<8>(const void* ptr) noexcept {
+    return (0xcbf29ce484222325ULL ^ (*(uint64_t*)ptr)) * 0x100000001b3ULL;
+    //return umul128(*(uint64_t*)ptr, 0xde5fb9d2630458e9ull);
 }
 
 template<>
-HRD_ALWAYS_INLINE uint32_t hash_base::hash_1<12>(const void* ptr) noexcept
+HRD_ALWAYS_INLINE size_t hash_base::hash_1<12>(const void* ptr) noexcept
 {
     const uint32_t* key = reinterpret_cast<const uint32_t*>(ptr);
 
@@ -828,7 +854,7 @@ HRD_ALWAYS_INLINE uint32_t hash_base::hash_1<12>(const void* ptr) noexcept
 }
 
 template<>
-HRD_ALWAYS_INLINE uint32_t hash_base::hash_1<16>(const void* ptr) noexcept
+HRD_ALWAYS_INLINE size_t hash_base::hash_1<16>(const void* ptr) noexcept
 {
     const uint32_t* key = reinterpret_cast<const uint32_t*>(ptr);
 
@@ -896,7 +922,7 @@ public:
     hash_set(const hash_set& r) :
         hash_pred(r)
     {
-        ctor_copy(r, IS_TRIVIALLY_COPYABLE());
+        ctor_copy(IS_TRIVIALLY_COPYABLE(), r);
     }
 
     hash_set(hash_set&& r) noexcept :
@@ -962,7 +988,7 @@ public:
     HRD_ALWAYS_INLINE void reserve(size_type hint) {
         hint *= 2;
         if (HRD_LIKELY(hint > _capacity))
-            resize_pow2<this_type>(roundup(hint));
+            resize_pow2(roundup(hint), *this);
     }
 
     HRD_ALWAYS_INLINE void clear() noexcept {
@@ -974,10 +1000,12 @@ public:
         hash_pred::swap(r);
     }
 
+    /*! Can invalidate iterators. */
     HRD_ALWAYS_INLINE std::pair<iterator, bool> insert(const key_type& val) {
         return insert_(val, const_cast<this_type&>(*this), std::false_type());
     }
 
+    /*! Can invalidate iterators. */
     template<class P>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> insert(P&& val) {
         return insert_(std::forward<P>(val), const_cast<this_type&>(*this), std::false_type());
@@ -985,18 +1013,18 @@ public:
 
 	template<typename Iter>
 	HRD_ALWAYS_INLINE void insert(Iter first, Iter last) {
-		insert_iters(first, last, *this, typename Iter::iterator_category());
+        insert_iters(first, last, *this, typename Iter::iterator_category());
 	}
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     /*! Can invalidate iterators. */
-    void insert(std::initializer_list<value_type> lst)
-    {
+    void insert(std::initializer_list<value_type> lst) {
         for (auto i = lst.begin(), e = lst.end(); i != e; ++i)
             insert_(*i, *this, std::false_type());
     }
 #endif
 
+    /*! Can invalidate iterators. */
     template<class K>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace(K&& val) {
         return insert_(std::forward<K>(val), const_cast<this_type&>(*this), std::false_type());
@@ -1031,7 +1059,7 @@ public:
     }
 
     void shrink_to_fit() {
-        hash_base::shrink_to_fit<this_type>();
+        hash_base::shrink_to_fit<this_type>(*this);
     }
 
     HRD_ALWAYS_INLINE hash_set& operator=(const hash_set& r) {
@@ -1098,7 +1126,7 @@ public:
     hash_map(const hash_map& r) :
         hash_pred(r)
     {
-        ctor_copy(r, IS_TRIVIALLY_COPYABLE());
+        ctor_copy(IS_TRIVIALLY_COPYABLE(), r);
     }
 
     hash_map(hash_map&& r) noexcept :
@@ -1164,7 +1192,7 @@ public:
     HRD_ALWAYS_INLINE void reserve(size_type hint) {
         hint *= 2;
         if (HRD_LIKELY(hint > _capacity))
-            resize_pow2<this_type>(roundup(hint));
+            resize_pow2(roundup(hint), *this);
     }
 
     void clear() noexcept {
@@ -1186,9 +1214,9 @@ public:
     }
 
 	template<typename Iter>
-	HRD_ALWAYS_INLINE void insert(Iter first, Iter last) {
+    HRD_ALWAYS_INLINE void insert(Iter first, Iter last) {
 		insert_iters(first, last, *this, typename Iter::iterator_category());
-	}
+    }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     void insert(std::initializer_list<value_type> lst) {
@@ -1246,7 +1274,7 @@ public:
     }
 
     HRD_ALWAYS_INLINE void shrink_to_fit() {
-        hash_base::shrink_to_fit<this_type>();
+        hash_base::shrink_to_fit<this_type>(*this);
     }
 
     HRD_ALWAYS_INLINE hash_map& operator=(const hash_map& r) {
@@ -1282,13 +1310,14 @@ private:
     {
         size_t used = _erased + _size;
         if (HRD_UNLIKELY(_capacity - used <= used))
-            resize_pow2<this_type>(2 * (_capacity + 1));
+            resize_pow2(2 * (_capacity + 1), *this);
 
         storage_type* empty_spot = nullptr;
         uint32_t deleted_mark = DELETED_MARK;
-        const uint32_t mark = make_mark(hash_pred::operator()(k));
+        size_t i = make_mark(hash_pred::operator()(k));
+        const uint32_t mark = static_cast<uint32_t>(i);
 
-        for (size_t i = mark;;)
+        for (;;)
         {
             i &= _capacity;
             storage_type* r = reinterpret_cast<storage_type*>(_elements) + i++;
@@ -1326,13 +1355,14 @@ private:
     {
         size_type used = _erased + _size;
         if (HRD_UNLIKELY(_capacity - used <= used))
-            resize_pow2<this_type>(2 * (_capacity + 1));
+            resize_pow2(2 * (_capacity + 1), *this);
 
         storage_type* empty_spot = nullptr;
         uint32_t deleted_mark = DELETED_MARK;
-        const uint32_t mark = make_mark(hash_pred::operator()(k));
+        size_t i = make_mark(hash_pred::operator()(k));
+        const uint32_t mark = static_cast<uint32_t>(i);
 
-        for (size_t i = mark;;)
+        for (;;)
         {
             i &= _capacity;
             storage_type* r = reinterpret_cast<storage_type*>(_elements) + i++;
