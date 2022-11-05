@@ -529,6 +529,27 @@ protected:
         tmp.reset();
     }
 
+	template <typename Iter, class this_type, typename SIZE_PREPARED>
+	void insert_iters_(Iter first, Iter last, this_type& ref, SIZE_PREPARED) {
+		for (; first != last; ++first)
+			insert_(*first, ref, SIZE_PREPARED());
+	}
+
+	template<typename Iter, class this_type>
+	HRD_ALWAYS_INLINE void insert_iters(Iter first, Iter last, this_type& ref, std::random_access_iterator_tag)
+	{
+		size_t actual = std::distance(first, last) + _size;
+		if ((_erased + actual) >= (_capacity / 2))
+            resize_pow2<this_type>(roundup((actual | 1) * 2));
+
+		insert_iters_(first, last, ref, std::true_type());
+	}
+
+	template<typename Iter, class this_type, typename XXX>
+	HRD_ALWAYS_INLINE void insert_iters(Iter first, Iter last, this_type& ref, XXX) {
+		insert_iters_(first, last, ref, std::false_type());
+	}
+
     HRD_ALWAYS_INLINE void ctor_empty() noexcept
     {
         _size = 0;
