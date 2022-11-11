@@ -50,7 +50,7 @@
 #  define HRD_ATTR_NORETURN __attribute__((noreturn))
 #endif
 
-namespace hrd {
+namespace hrd1 {
 
 class hash_base
 {
@@ -942,7 +942,7 @@ public:
     hash_set(Iter first, Iter last, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
         hash_pred(hf, eql)
     {
-        ctor_iters(first, last, *this, typename Iter::iterator_category());
+        ctor_iters(first, last, *this, typename std::iterator_traits<Iter>::iterator_category());
     }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
@@ -1013,7 +1013,7 @@ public:
 
 	template<typename Iter>
 	HRD_ALWAYS_INLINE void insert(Iter first, Iter last) {
-        insert_iters(first, last, *this, typename Iter::iterator_category());
+        insert_iters(first, last, *this, typename std::iterator_traits<Iter>::iterator_category());
 	}
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
@@ -1146,7 +1146,7 @@ public:
     hash_map(Iter first, Iter last, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
         hash_pred(hf, eql)
     {
-        ctor_iters(first, last, *this, typename Iter::iterator_category());
+        ctor_iters(first, last, *this, typename std::iterator_traits<Iter>::iterator_category());
     }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
@@ -1215,7 +1215,7 @@ public:
 
 	template<typename Iter>
     HRD_ALWAYS_INLINE void insert(Iter first, Iter last) {
-		insert_iters(first, last, *this, typename Iter::iterator_category());
+		insert_iters(first, last, *this, typename std::iterator_traits<Iter>::iterator_category());
     }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
