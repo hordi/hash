@@ -3,7 +3,7 @@
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
 //
 // This version supports uint32_t hashing (no hash calculation needed after reallocation/resize) 
-// version 1.3.0
+// version 1.3.1
 // 
 // https://github.com/hordi/hash
 //
