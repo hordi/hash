@@ -3,7 +3,7 @@
 //LOAD_FACTOR implementation
 
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
-// version 1.3.0
+// version 1.3.1
 // https://github.com/hordi/hash
 //
 // Licensed under the MIT License <http://opensource.org/licenses/MIT>.
