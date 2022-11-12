@@ -175,8 +175,8 @@ protected:
     }
 
     HRD_ALWAYS_INLINE static uint32_t make_mark(size_t h) noexcept {
-		auto n = static_cast<uint32_t>(h);
-		return n > DELETED_MARK ? n : (DELETED_MARK + 1);
+        auto n = static_cast<uint32_t>(h);
+        return n > DELETED_MARK ? n : (DELETED_MARK + 1);
     }
 
 #ifdef _MSC_VER
@@ -615,8 +615,8 @@ protected:
         _size--;
 
         //set DELETED_MARK only if next element not 0
-		auto ee = reinterpret_cast<storage_type*>(_elements);
-		auto next_mark = ee[(ptr + 1 - ee) & _capacity].mark;
+        auto ee = reinterpret_cast<storage_type*>(_elements);
+        auto next_mark = ee[(ptr + 1 - ee) & _capacity].mark;
         if (HRD_LIKELY(!next_mark))
             ptr->mark = 0;
         else {
@@ -951,7 +951,7 @@ protected:
     {
         size_t actual = std::distance(first, last) + _size;
         if ((_erased + actual) >= (_capacity / 2))
-            resize_pow2<this_type>(roundup((actual | 1) * 2));
+            resize_pow2(roundup((actual | 1) * 2));
 
         insert_iters_(first, last, std::true_type());
     }

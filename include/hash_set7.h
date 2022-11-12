@@ -178,8 +178,8 @@ protected:
     }
 
     HRD_ALWAYS_INLINE static uint32_t make_mark(size_t h) noexcept {
-		auto n = static_cast<uint32_t>(h);
-		return n > DELETED_MARK ? n : (DELETED_MARK + 1);
+        auto n = static_cast<uint32_t>(h);
+        return n > DELETED_MARK ? n : (DELETED_MARK + 1);
     }
 
 #ifdef _MSC_VER
@@ -413,7 +413,7 @@ protected:
         // |1 to prevent 0-usage (produces _capacity = 0 finally)
         ctor_pow2(roundup((hint_size | 1) * 2));
     }
-    
+
     template<typename Iter>
     hash_base(Iter first, Iter last, const hasher& hf = hasher(), const key_equal& eql = key_equal()) :
         hash_pred(hf, eql)
@@ -428,7 +428,7 @@ protected:
         ctor_init_list(lst);
     }
 #endif
-    
+
     ~hash_base() noexcept {
         dtor(IS_TRIVIALLY_DESTRUCTIBLE());
     }
@@ -627,8 +627,8 @@ protected:
         _size--;
 
         //set DELETED_MARK only if next element not 0
-		auto ee = reinterpret_cast<storage_type*>(_elements);
-		auto next_mark = ee[(ptr + 1 - ee) & _capacity].mark;
+        auto ee = reinterpret_cast<storage_type*>(_elements);
+        auto next_mark = ee[(ptr + 1 - ee) & _capacity].mark;
         if (HRD_LIKELY(!next_mark))
             ptr->mark = 0;
         else {
@@ -962,7 +962,7 @@ protected:
     {
         size_t actual = std::distance(first, last) + _size;
         if ((_erased + actual) >= _gap)
-            resize_pow2<this_type>(roundup((actual | 1) * 2));
+            resize_pow2(roundup((actual | 1) * 2));
 
         insert_iters_(first, last, std::true_type());
     }

@@ -142,7 +142,7 @@ protected:
         StorageItem(StorageItem&& r) : data(std::move(r.data)) {}
         StorageItem(const StorageItem& r) : data(r.data) {}
 
-		T data;
+        T data;
     };
 
     constexpr static const uint32_t OFFSET_BASIS = 2166136261;
@@ -280,8 +280,8 @@ protected:
         this_type tmp(pow2--, false);
         if (HRD_LIKELY(_size)) //rehash
         {
-			typename this_type::storage_type* src_ee = (typename this_type::storage_type*)(_elements + align_ppow2(_capacity));
-			typename this_type::storage_type* dst_ee = (typename this_type::storage_type*)(tmp._elements + align_ppow2(pow2));
+            typename this_type::storage_type* src_ee = (typename this_type::storage_type*)(_elements + align_ppow2(_capacity));
+            typename this_type::storage_type* dst_ee = (typename this_type::storage_type*)(tmp._elements + align_ppow2(pow2));
 
             typedef typename this_type::storage_type StorageType;
             for (size_t i = 0;; ++i)
@@ -390,7 +390,7 @@ protected:
             friend hash_base;
             const_iterator(typename base::storage_type* p, int8_t* mark, typename base::size_type cnt) noexcept : _mark(mark), _ptr(p), _cnt(cnt) {}
 
-			int8_t* _mark;
+            int8_t* _mark;
             typename base::storage_type* _ptr;
             typename base::size_type _cnt;
         };
@@ -448,10 +448,10 @@ protected:
     {
         size_t cnt = ref._size;
 
-		size_t bt_size = align_ppow2(_capacity);
+        size_t bt_size = align_ppow2(_capacity);
 
-		typename this_type::storage_type* dst_ee = (typename this_type::storage_type*)(_elements + bt_size);
-		typename this_type::storage_type* src_ee = (typename this_type::storage_type*)(ref._elements + bt_size);
+        typename this_type::storage_type* dst_ee = (typename this_type::storage_type*)(_elements + bt_size);
+        typename this_type::storage_type* src_ee = (typename this_type::storage_type*)(ref._elements + bt_size);
 
         for (size_t i = 0;; ++i)
         {
@@ -512,8 +512,8 @@ protected:
     template<typename V, class this_type>
     HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::true_type /*resized*/)
     {
-		size_t bt_size = align_ppow2(_capacity);
-		typename this_type::storage_type* ee = (typename this_type::storage_type*)(_elements + bt_size);
+        size_t bt_size = align_ppow2(_capacity);
+        typename this_type::storage_type* ee = (typename this_type::storage_type*)(_elements + bt_size);
 
         for (size_t i = ref(this_type::key_getter::get_key(val));; ++i)
         {
@@ -574,28 +574,28 @@ protected:
     }
 
     //DONE
-	template <typename Iter, class this_type, typename SIZE_PREPARED>
-	void insert_iters_(Iter first, Iter last, this_type& ref, SIZE_PREPARED) {
-		for (; first != last; ++first)
+    template <typename Iter, class this_type, typename SIZE_PREPARED>
+    void insert_iters_(Iter first, Iter last, this_type& ref, SIZE_PREPARED) {
+        for (; first != last; ++first)
             insert_(*first, ref, SIZE_PREPARED());
-	}
+    }
 
     //DONE
-	template<typename Iter, class this_type>
-	HRD_ALWAYS_INLINE void insert_iters(Iter first, Iter last, this_type& ref, std::random_access_iterator_tag)
-	{
+    template<typename Iter, class this_type>
+    HRD_ALWAYS_INLINE void insert_iters(Iter first, Iter last, this_type& ref, std::random_access_iterator_tag)
+    {
         size_t actual = std::distance(first, last) + _size;
         if ((_erased + actual) >= (_capacity / 2))
             resize_pow2(roundup((actual | 1) * 2), ref);
 
         insert_iters_(first, last, ref, std::true_type());
-	}
+    }
 
     //DONE
-	template<typename Iter, class this_type, typename XXX>
-	HRD_ALWAYS_INLINE void insert_iters(Iter first, Iter last, this_type& ref, XXX) {
+    template<typename Iter, class this_type, typename XXX>
+    HRD_ALWAYS_INLINE void insert_iters(Iter first, Iter last, this_type& ref, XXX) {
         insert_iters_(first, last, ref, std::false_type());
-	}
+    }
 
     //DONE
     HRD_ALWAYS_INLINE void ctor_empty() noexcept
@@ -611,13 +611,13 @@ protected:
     {
         _size = 0;
         _capacity = pow2 - 1;  //-1 for performance in lookup-function
-		size_t bt_size = align_ppow2(pow2 - 1);
-		_erased = 0;
-		_elements = (int8_t*)malloc(bt_size + element_size * pow2);
-		if (HRD_LIKELY(_elements))
+        size_t bt_size = align_ppow2(pow2 - 1);
+        _erased = 0;
+        _elements = (int8_t*)malloc(bt_size + element_size * pow2);
+        if (HRD_LIKELY(!!_elements))
             memset(_elements, 0, bt_size);
         else
-			throw_bad_alloc();
+            throw_bad_alloc();
     }
 
     //DONE. Optimize? use input index of ptr and do not calculate it?
@@ -627,7 +627,7 @@ protected:
         ptr->data.~data_type();
         _size--;
 
-		storage_type* ee = reinterpret_cast<storage_type*>(_elements + align_ppow2(_capacity));
+        storage_type* ee = reinterpret_cast<storage_type*>(_elements + align_ppow2(_capacity));
         auto idx = ptr - ee;
         size_t i_next = ((idx + 1) & _capacity);
 
@@ -657,7 +657,7 @@ protected:
             typedef typename this_type::storage_type storage_type;
             typedef typename this_type::value_type data_type;
 
-			storage_type* ee = reinterpret_cast<storage_type*>(_elements + align_ppow2(_capacity));
+            storage_type* ee = reinterpret_cast<storage_type*>(_elements + align_ppow2(_capacity));
 
             for (size_t i = 0;; ++i)
             {
@@ -739,15 +739,15 @@ protected:
 
     //DONE
     //probe available size each time
-	template<typename V, class this_type>
-	HRD_ALWAYS_INLINE std::pair<typename this_type::iterator, bool> insert_(V&& val, this_type& ref, std::false_type)
-	{
-		size_t used = _erased + _size;
-		if (HRD_UNLIKELY(_capacity - used <= used))
-			resize_pow2(2 * (_capacity + 1), ref);
+    template<typename V, class this_type>
+    HRD_ALWAYS_INLINE std::pair<typename this_type::iterator, bool> insert_(V&& val, this_type& ref, std::false_type)
+    {
+        size_t used = _erased + _size;
+        if (HRD_UNLIKELY(_capacity - used <= used))
+            resize_pow2(2 * (_capacity + 1), ref);
 
         return insert_(std::forward<V>(val), ref, std::true_type());
-	}
+    }
 
     //DONE
     template<typename key_type, class this_type>
@@ -770,27 +770,27 @@ protected:
         }
     }
 
-	template<typename key_type, class this_type>
-	HRD_ALWAYS_INLINE typename this_type::iterator find_iter_(const key_type& k, const this_type& ref) const noexcept
-	{
+    template<typename key_type, class this_type>
+    HRD_ALWAYS_INLINE typename this_type::iterator find_iter_(const key_type& k, const this_type& ref) const noexcept
+    {
         typedef typename this_type::iterator iter;
-		typename this_type::storage_type* ee = (typename this_type::storage_type*)(_elements + align_ppow2(_capacity));
+        typename this_type::storage_type* ee = (typename this_type::storage_type*)(_elements + align_ppow2(_capacity));
 
-		for (size_t i = ref(k);; ++i)
-		{
-			i &= _capacity;
+        for (size_t i = ref(k);; ++i)
+        {
+            i &= _capacity;
 
-			int32_t h = _elements[i];
-			if (h == USED_MARK) {
-				auto& r = ee[i];
+            int32_t h = _elements[i];
+            if (h == USED_MARK) {
+                auto& r = ee[i];
                 if (HRD_LIKELY(ref(this_type::key_getter::get_key(r.data), k))) { //identical found
                     return iter(&r, _elements + i, 0);
                 }
-			}
-			else if (!h)
-				return iter();
-		}
-	}
+            }
+            else if (!h)
+                return iter();
+        }
+    }
 
     //DONE
     template <class this_type>
@@ -832,7 +832,7 @@ protected:
     HRD_ALWAYS_INLINE typename this_type::iterator begin_() noexcept
     {
         if (auto cnt = _size) {
-			auto ee = reinterpret_cast<typename this_type::storage_type*>(_elements + align_ppow2(_capacity));
+            auto ee = reinterpret_cast<typename this_type::storage_type*>(_elements + align_ppow2(_capacity));
             cnt--;
             for (size_t i = 0;; ++i) {
                 auto e = _elements + i;
@@ -907,7 +907,7 @@ protected:
 
 template<>
 HRD_ALWAYS_INLINE size_t hash_base::hash_1<1>(const void* ptr) noexcept {
-	return (0xcbf29ce484222325ULL ^ (*(uint8_t*)ptr)) * 0x100000001b3ULL;
+    return (0xcbf29ce484222325ULL ^ (*(uint8_t*)ptr)) * 0x100000001b3ULL;
     //uint32_t hash32 = (OFFSET_BASIS ^ (*(uint8_t*)ptr)) * 1607;
     //return hash32 ^ (hash32 >> 16);
 }
@@ -922,7 +922,7 @@ HRD_ALWAYS_INLINE size_t hash_base::hash_1<2>(const void* ptr) noexcept {
 
 template<>
 HRD_ALWAYS_INLINE size_t hash_base::hash_1<4>(const void* ptr) noexcept {
-	return (0xcbf29ce484222325ULL ^ (*(uint32_t*)ptr)) * 0x100000001b3ULL;
+    return (0xcbf29ce484222325ULL ^ (*(uint32_t*)ptr)) * 0x100000001b3ULL;
     //return umul128(*(uint32_t*)ptr, 0xde5fb9d2630458e9ull);
 }
 
@@ -1002,9 +1002,9 @@ private:
         HRD_ALWAYS_INLINE static const key_type& get_key(const value_type& r) noexcept {
             return r;
         }
-		HRD_ALWAYS_INLINE static const key_type& get_key(const storage_type& r) noexcept {
-			return r.data;
-		}
+        HRD_ALWAYS_INLINE static const key_type& get_key(const storage_type& r) noexcept {
+            return r.data;
+        }
     };
 
 public:
@@ -1107,10 +1107,10 @@ public:
         return insert_(std::forward<P>(val), const_cast<this_type&>(*this), std::false_type());
     }
 
-	template<typename Iter>
-	HRD_ALWAYS_INLINE void insert(Iter first, Iter last) {
+    template<typename Iter>
+    HRD_ALWAYS_INLINE void insert(Iter first, Iter last) {
         insert_iters(first, last, *this, typename std::iterator_traits<Iter>::iterator_category());
-	}
+    }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     /*! Can invalidate iterators. */
@@ -1209,9 +1209,9 @@ private:
         HRD_ALWAYS_INLINE static const key_type& get_key(const value_type& r) noexcept {
             return r.first;
         }
-		HRD_ALWAYS_INLINE static const key_type& get_key(const storage_type& r) noexcept {
-			return r.data.first;
-		}
+        HRD_ALWAYS_INLINE static const key_type& get_key(const storage_type& r) noexcept {
+            return r.data.first;
+        }
     };
 
 public:
@@ -1312,9 +1312,9 @@ public:
         return insert_(std::forward<P>(val), const_cast<this_type&>(*this), std::false_type());
     }
 
-	template<typename Iter>
+    template<typename Iter>
     HRD_ALWAYS_INLINE void insert(Iter first, Iter last) {
-		insert_iters(first, last, *this, typename std::iterator_traits<Iter>::iterator_category());
+        insert_iters(first, last, *this, typename std::iterator_traits<Iter>::iterator_category());
     }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)

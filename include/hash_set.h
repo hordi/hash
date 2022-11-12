@@ -181,8 +181,8 @@ protected:
     }
 
     HRD_ALWAYS_INLINE static uint32_t make_mark(size_t h) noexcept {
-		uint32_t n = static_cast<uint32_t>(h);
-		return (n > DELETED_MARK) ? n : (DELETED_MARK + 1);
+        uint32_t n = static_cast<uint32_t>(h);
+        return (n > DELETED_MARK) ? n : (DELETED_MARK + 1);
     }
 
 /*
@@ -529,26 +529,26 @@ protected:
         tmp.reset();
     }
 
-	template <typename Iter, class this_type, typename SIZE_PREPARED>
-	void insert_iters_(Iter first, Iter last, this_type& ref, SIZE_PREPARED) {
-		for (; first != last; ++first)
-			insert_(*first, ref, SIZE_PREPARED());
-	}
+    template <typename Iter, class this_type, typename SIZE_PREPARED>
+    void insert_iters_(Iter first, Iter last, this_type& ref, SIZE_PREPARED) {
+        for (; first != last; ++first)
+            insert_(*first, ref, SIZE_PREPARED());
+    }
 
-	template<typename Iter, class this_type>
-	HRD_ALWAYS_INLINE void insert_iters(Iter first, Iter last, this_type& ref, std::random_access_iterator_tag)
-	{
-		size_t actual = std::distance(first, last) + _size;
-		if ((_erased + actual) >= (_capacity / 2))
+    template<typename Iter, class this_type>
+    HRD_ALWAYS_INLINE void insert_iters(Iter first, Iter last, this_type& ref, std::random_access_iterator_tag)
+    {
+        size_t actual = std::distance(first, last) + _size;
+        if ((_erased + actual) >= (_capacity / 2))
             resize_pow2<this_type>(roundup((actual | 1) * 2));
 
-		insert_iters_(first, last, ref, std::true_type());
-	}
+        insert_iters_(first, last, ref, std::true_type());
+    }
 
-	template<typename Iter, class this_type, typename XXX>
-	HRD_ALWAYS_INLINE void insert_iters(Iter first, Iter last, this_type& ref, XXX) {
-		insert_iters_(first, last, ref, std::false_type());
-	}
+    template<typename Iter, class this_type, typename XXX>
+    HRD_ALWAYS_INLINE void insert_iters(Iter first, Iter last, this_type& ref, XXX) {
+        insert_iters_(first, last, ref, std::false_type());
+    }
 
     HRD_ALWAYS_INLINE void ctor_empty() noexcept {
         _size = 0;
@@ -628,7 +628,7 @@ protected:
         ctor_empty();
     }
 
-	//all needed space should be allocated before
+    //all needed space should be allocated before
     template<typename V, class this_type>
     std::pair<typename this_type::iterator, bool> insert_(V&& val, this_type& ref, std::true_type)
     {
@@ -667,16 +667,16 @@ protected:
         }
     }
 
-	//probe available size
-	template<typename V, class this_type>
-	HRD_ALWAYS_INLINE std::pair<typename this_type::iterator, bool> insert_(V&& val, this_type& ref, std::false_type)
-	{
-		size_t used = _erased + _size;
-		if (HRD_UNLIKELY(_capacity - used <= used))
-			resize_pow2<this_type>(2 * (_capacity + 1));
+    //probe available size
+    template<typename V, class this_type>
+    HRD_ALWAYS_INLINE std::pair<typename this_type::iterator, bool> insert_(V&& val, this_type& ref, std::false_type)
+    {
+        size_t used = _erased + _size;
+        if (HRD_UNLIKELY(_capacity - used <= used))
+            resize_pow2<this_type>(2 * (_capacity + 1));
 
         return insert_(std::forward<V>(val), ref, std::true_type());
-	}
+    }
 
     template<typename key_type, class this_type>
     HRD_ALWAYS_INLINE typename this_type::storage_type* find_(const key_type& k, this_type& ref) const noexcept
@@ -1002,10 +1002,10 @@ public:
         return insert_(std::forward<P>(val), const_cast<this_type&>(*this), std::false_type());
     }
 
-	template<typename Iter>
-	HRD_ALWAYS_INLINE void insert(Iter first, Iter last) {
-		insert_iters(first, last, *this, typename std::iterator_traits<Iter>::iterator_category());
-	}
+    template<typename Iter>
+    HRD_ALWAYS_INLINE void insert(Iter first, Iter last) {
+        insert_iters(first, last, *this, typename std::iterator_traits<Iter>::iterator_category());
+    }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     /*! Can invalidate iterators. */
@@ -1204,10 +1204,10 @@ public:
         return insert_(std::forward<P>(val), const_cast<this_type&>(*this), std::false_type());
     }
 
-	template<typename Iter>
-	HRD_ALWAYS_INLINE void insert(Iter first, Iter last) {
+    template<typename Iter>
+    HRD_ALWAYS_INLINE void insert(Iter first, Iter last) {
         insert_iters(first, last, *this, typename std::iterator_traits<Iter>::iterator_category());
-	}
+    }
 
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     void insert(std::initializer_list<value_type> lst) {
