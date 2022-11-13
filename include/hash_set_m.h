@@ -752,7 +752,7 @@ protected:
         typename this_type::iterator& ret = (typename this_type::iterator&)it;
 
         auto idx = it._mark - _elements;
-		auto i_next = ((idx + 1) & _capacity);
+        auto e_next = _elements + ((idx + 1) & _capacity);
 
         if (HRD_LIKELY(!!it._ptr)) //valid
         {
@@ -762,7 +762,8 @@ protected:
 			_size--;
 
 			//set DELETED_MARK only if next element not 0
-			if (HRD_LIKELY(!_elements[i_next]))
+            int mark = *e_next;
+			if (HRD_LIKELY(!mark))
 				_elements[idx] = 0;
 			else {
 				_elements[idx] = DELETED_MARK;

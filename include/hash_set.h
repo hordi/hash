@@ -3,7 +3,7 @@
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
 //
 // This version supports uint32_t hashing (no hash calculation needed after reallocation/resize) 
-// version 1.3.1
+// version 1.3.2
 // 
 // https://github.com/hordi/hash
 //
@@ -701,9 +701,25 @@ protected:
     HRD_ALWAYS_INLINE typename this_type::iterator erase_(typename this_type::const_iterator& it) noexcept
     {
         typename this_type::iterator& ret = (typename this_type::iterator&)it;
+
+        auto ee = reinterpret_cast<typename this_type::storage_type*>(_elements);
+        auto e_next = ee + ((it._ptr + 1 - ee) & _capacity);
+
         if (HRD_LIKELY(!!it._ptr)) //valid
         {
-            deleteElement<typename this_type::storage_type, typename this_type::value_type>(it._ptr);
+            typename this_type::value_type data_type;
+
+			it._ptr->data.~data_type();
+			_size--;
+
+			//set DELETED_MARK only if next element not 0
+			auto next_mark = e_next->mark;
+			if (HRD_LIKELY(!next_mark))
+                it._ptr->mark = 0;
+			else {
+                it._ptr->mark = DELETED_MARK;
+				_erased++;
+			}
 
             if (HRD_UNLIKELY(ret._cnt)) {
                 for (--ret._cnt;;) {
@@ -719,12 +735,38 @@ protected:
     template <class this_type>
     HRD_ALWAYS_INLINE size_type erase_(const typename this_type::key_type& k, this_type& ref) noexcept
     {
-        auto ptr = find_(k, ref);
-        if (HRD_LIKELY(!!ptr)) {
-            deleteElement<typename this_type::storage_type, typename this_type::value_type>(ptr);
-            return 1;
-        }
-        return 0;
+        auto ee = reinterpret_cast<typename this_type::storage_type*>(_elements);
+		const uint32_t mark = make_mark(ref(k));
+		for (size_t i = mark;;)
+		{
+			i &= _capacity;
+			auto& r = ee[i++];
+			auto h = r.mark;
+			if (HRD_LIKELY(h == mark))
+			{
+                if (HRD_LIKELY(ref(this_type::key_getter::get_key(r.data), k))) { //identical found
+                    
+					typename this_type::value_type data_type;
+
+					r.data.~data_type();
+					_size--;
+
+					h = ee[i & _capacity].mark;
+
+					//set DELETED_MARK only if next element not 0
+					if (HRD_LIKELY(!h))
+						r.mark = 0;
+					else {
+						r.mark = DELETED_MARK;
+						_erased++;
+					}
+                    
+                    return 1;
+                }
+			}
+			else if (!h)
+				return 0;
+		}
     }
 
     template <class this_type>
