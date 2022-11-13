@@ -5,7 +5,7 @@
 // Fast hashtable (hash_set, hash_map) based on open addressing hashing for C++11 and up
 //
 // This version supports full size_t hashing (calculates hash of each elements after any reallocation/resize) 
-// version 1.3.1
+// version 1.3.2
 //
 // https://github.com/hordi/hash
 //
@@ -206,7 +206,6 @@ protected:
     }
 */
 
-    //DONE
     //space must be allocated before
     template<typename this_type, typename V>
     HRD_ALWAYS_INLINE void insert_unique(V&& st, const this_type& ref, typename this_type::storage_type* this_elements, std::false_type /*non-trivial data*/)
@@ -226,7 +225,6 @@ protected:
         }
     }
 
-    //DONE
     template<typename this_type>
     void resize_pow2(size_t pow2, const this_type& ref, std::true_type /*trivial data*/)
     {
@@ -273,7 +271,6 @@ protected:
         _erased = 0;
     }
 
-    //DONE
     template<typename this_type>
     void resize_pow2(size_t pow2, const this_type& ref, std::false_type /*non-trivial data*/)
     {
@@ -310,7 +307,6 @@ protected:
         _erased = 0;
     }
 
-    //DONE
     template<typename this_type>
     HRD_ALWAYS_INLINE void resize_pow2(size_t pow2, const this_type& ref) {
         resize_pow2(pow2, ref, typename this_type::IS_TRIVIALLY_COPYABLE());
@@ -418,7 +414,6 @@ protected:
         };
     };
 
-    //DONE
     template<typename this_type>
     HRD_ALWAYS_INLINE void ctor_copy(std::true_type, const this_type& ref) //IS_TRIVIALLY_COPYABLE
     {
@@ -442,7 +437,6 @@ protected:
             ctor_empty();
     }
 
-    //DONE
     template<typename this_type>
     HRD_ALWAYS_INLINE void ctor_copy_1(std::true_type, const this_type& ref) //IS_NOTHROW_CONSTRUCTIBLE
     {
@@ -463,7 +457,6 @@ protected:
         }
     }
 
-    //DONE
     template<typename this_type>
     HRD_ALWAYS_INLINE void ctor_copy_1(std::false_type, const this_type& ref) //IS_NOTHROW_CONSTRUCTIBLE == false
     {
@@ -473,7 +466,6 @@ protected:
         tmp.reset();
     }
 
-    //DONE
     template<typename this_type>
     HRD_ALWAYS_INLINE void ctor_copy(std::false_type, const this_type& ref) //IS_TRIVIALLY_COPYABLE
     {
@@ -485,7 +477,6 @@ protected:
             ctor_empty();
     }
 
-    //DONE
     HRD_ALWAYS_INLINE void ctor_move(hash_base&& r) noexcept
     {
         memcpy(this, &r, sizeof(hash_base));
@@ -495,7 +486,6 @@ protected:
             _elements = reinterpret_cast<int8_t*>(&_size); //0-hash indicates empty element - use this trick to prevent redundant "is empty" check in find-function
     }
 
-    //DONE
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     template<typename this_type>
     HRD_ALWAYS_INLINE void ctor_init_list(std::initializer_list<typename this_type::value_type> lst, this_type& ref)
@@ -508,7 +498,6 @@ protected:
     }
 #endif
 
-    //DONE
     template<typename V, class this_type>
     HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::true_type /*resized*/)
     {
@@ -534,7 +523,6 @@ protected:
         }
     }
 
-    //DONE
     template<typename V, class this_type>
     HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::false_type /*not resized yet*/)
     {
@@ -544,14 +532,12 @@ protected:
         ctor_insert_(std::forward<V>(val), ref, std::true_type());
     }
 
-    //DONE
     template <typename Iter, class this_type, typename SIZE_PREPARED>
     void ctor_insert_(Iter first, Iter last, this_type& ref, SIZE_PREPARED) {
         for (; first != last; ++first)
             ctor_insert_(*first, ref, SIZE_PREPARED());
     }
 
-    //DONE
     template<typename Iter, class this_type>
     HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, this_type& ref, std::random_access_iterator_tag)
     {
@@ -562,7 +548,6 @@ protected:
         tmp.reset();
     }
 
-    //DONE
     template<typename Iter, class this_type, typename XXX>
     HRD_ALWAYS_INLINE void ctor_iters(Iter first, Iter last, this_type& ref, XXX)
     {
@@ -573,14 +558,12 @@ protected:
         tmp.reset();
     }
 
-    //DONE
     template <typename Iter, class this_type, typename SIZE_PREPARED>
     void insert_iters_(Iter first, Iter last, this_type& ref, SIZE_PREPARED) {
         for (; first != last; ++first)
             insert_(*first, ref, SIZE_PREPARED());
     }
 
-    //DONE
     template<typename Iter, class this_type>
     HRD_ALWAYS_INLINE void insert_iters(Iter first, Iter last, this_type& ref, std::random_access_iterator_tag)
     {
@@ -591,13 +574,11 @@ protected:
         insert_iters_(first, last, ref, std::true_type());
     }
 
-    //DONE
     template<typename Iter, class this_type, typename XXX>
     HRD_ALWAYS_INLINE void insert_iters(Iter first, Iter last, this_type& ref, XXX) {
         insert_iters_(first, last, ref, std::false_type());
     }
 
-    //DONE
     HRD_ALWAYS_INLINE void ctor_empty() noexcept
     {
         _size = 0;
@@ -606,7 +587,6 @@ protected:
         _erased = 0;
     }
 
-    //DONE
     HRD_ALWAYS_INLINE void ctor_pow2(size_t pow2, size_t element_size)
     {
         _size = 0;
@@ -620,27 +600,6 @@ protected:
             throw_bad_alloc();
     }
 
-    //DONE. Optimize? use input index of ptr and do not calculate it?
-    template<typename storage_type, typename data_type>
-    HRD_ALWAYS_INLINE void deleteElement(storage_type* ptr) noexcept
-    {
-        ptr->data.~data_type();
-        _size--;
-
-        storage_type* ee = reinterpret_cast<storage_type*>(_elements + align_ppow2(_capacity));
-        auto idx = ptr - ee;
-        size_t i_next = ((idx + 1) & _capacity);
-
-        //set DELETED_MARK only if next element not 0
-        if (HRD_LIKELY(!_elements[i_next]))
-            _elements[idx] = 0;
-        else {
-            _elements[idx] = DELETED_MARK;
-            _erased++;
-        }
-    }
-
-    //DONE
     template<class this_type>
     HRD_ALWAYS_INLINE void dtor(std::true_type, this_type*) noexcept
     {
@@ -648,7 +607,6 @@ protected:
             free(_elements);
     }
 
-    //DONE
     template<class this_type>
     HRD_ALWAYS_INLINE void dtor(std::false_type, this_type*) noexcept
     {
@@ -675,7 +633,6 @@ protected:
         free(_elements);
     }
 
-    //DONE
     template<class this_type>
     HRD_ALWAYS_INLINE void clear(std::true_type) noexcept
     {
@@ -685,7 +642,6 @@ protected:
         }
     }
 
-    //DONE
     template<class this_type>
     HRD_ALWAYS_INLINE void clear(std::false_type) noexcept {
         dtor(std::false_type(), (this_type*)nullptr);
@@ -737,7 +693,6 @@ protected:
         }
     }
 
-    //DONE
     //probe available size each time
     template<typename V, class this_type>
     HRD_ALWAYS_INLINE std::pair<typename this_type::iterator, bool> insert_(V&& val, this_type& ref, std::false_type)
@@ -749,12 +704,11 @@ protected:
         return insert_(std::forward<V>(val), ref, std::true_type());
     }
 
-    //DONE
     template<typename key_type, class this_type>
     HRD_ALWAYS_INLINE typename this_type::storage_type* find_(const key_type& k, const this_type& ref) const noexcept
     {
-        typename this_type::storage_type* ee = (typename this_type::storage_type*)(_elements + align_ppow2(_capacity));
-        
+		auto ee = (typename this_type::storage_type*)(_elements + align_ppow2(_capacity));
+
         for (size_t i = ref(k);;++i)
         {
             i &= _capacity;
@@ -792,14 +746,28 @@ protected:
         }
     }
 
-    //DONE
     template <class this_type>
     HRD_ALWAYS_INLINE typename this_type::iterator erase_(typename this_type::const_iterator& it) noexcept
     {
         typename this_type::iterator& ret = (typename this_type::iterator&)it;
+
+        auto idx = it._mark - _elements;
+		auto i_next = ((idx + 1) & _capacity);
+
         if (HRD_LIKELY(!!it._ptr)) //valid
         {
-            deleteElement<typename this_type::storage_type, typename this_type::value_type>(it._ptr);
+            typename this_type::value_type data_type;
+
+            it._ptr->data.~data_type();
+			_size--;
+
+			//set DELETED_MARK only if next element not 0
+			if (HRD_LIKELY(!_elements[i_next]))
+				_elements[idx] = 0;
+			else {
+				_elements[idx] = DELETED_MARK;
+				_erased++;
+			}
 
             if (HRD_UNLIKELY(ret._cnt)) {
                 auto sv = ret._mark;
@@ -815,19 +783,42 @@ protected:
         return ret;
     }
 
-    //DONE
     template <class this_type>
     HRD_ALWAYS_INLINE size_type erase_(const typename this_type::key_type& k, this_type& ref) noexcept
     {
-        auto ptr = find_(k, ref);
-        if (HRD_LIKELY(!!ptr)) {
-            deleteElement<typename this_type::storage_type, typename this_type::value_type>(ptr);
-            return 1;
-        }
-        return 0;
+		typename this_type::storage_type* ee = (typename this_type::storage_type*)(_elements + align_ppow2(_capacity));
+
+        for (size_t i = ref(k);; ++i)
+		{
+			i &= _capacity;
+
+			int32_t h = _elements[i];
+			if (h == USED_MARK) {
+				auto& r = ee[i];
+                if (HRD_LIKELY(ref(this_type::key_getter::get_key(r.data), k))) { //identical found
+
+                    typename this_type::value_type data_type;
+                    
+					r.data.~data_type();
+					_size--;
+
+					h = _elements[(i + 1) & _capacity];
+					//set DELETED_MARK only if next element not 0
+					if (HRD_LIKELY(!h))
+						_elements[i] = 0;
+					else {
+						_elements[i] = DELETED_MARK;
+						_erased++;
+					}
+
+                    return 1;
+                }
+			}
+			else if (!h)
+				return 0;
+		}
     }
 
-    //DONE
     template <class this_type>
     HRD_ALWAYS_INLINE typename this_type::iterator begin_() noexcept
     {
@@ -843,7 +834,6 @@ protected:
         return typename this_type::iterator();
     }
 
-    //DONE
     template<class this_type>
     void shrink_to_fit(const this_type& ref)
     {
@@ -1399,7 +1389,6 @@ private:
         ctor_pow2(pow2, sizeof(storage_type));
     }
 
-    //DONE
 #if (__cplusplus >= 201402L || _MSC_VER > 1600 || __clang__)
     template<typename K, typename... Args>
     HRD_ALWAYS_INLINE std::pair<iterator, bool> emplace_(K&& k, Args&&... args)
@@ -1452,7 +1441,6 @@ private:
         }
     }
 
-    //DONE
     template<typename V>
     HRD_ALWAYS_INLINE mapped_type& find_insert(V&& k)
     {
