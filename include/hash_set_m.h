@@ -756,7 +756,7 @@ protected:
 
         if (HRD_LIKELY(!!it._ptr)) //valid
         {
-            typename this_type::value_type data_type;
+            typedef typename this_type::value_type data_type;
 
             it._ptr->data.~data_type();
             _size--;
@@ -798,7 +798,7 @@ protected:
                 auto& r = ee[i];
                 if (HRD_LIKELY(ref(this_type::key_getter::get_key(r.data), k))) //identical found
                 {
-                    typename this_type::value_type data_type;
+                    typedef typename this_type::value_type data_type;
                     
                     r.data.~data_type();
                     _size--;
