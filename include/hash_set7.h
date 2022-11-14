@@ -458,7 +458,7 @@ public:
         }
     }
 
-    HRD_ALWAYS_INLINE void reserve(size_type hint) {
+    void reserve(size_type hint) {
         hint *= 2;
         if (HRD_LIKELY(hint > _capacity))
             resize_pow2(roundup(hint));
@@ -509,11 +509,26 @@ public:
     * \params it - Iterator pointing to a single element to be removed
     * \return return an iterator pointing to the position immediately following of the element erased
     */
-    HRD_ALWAYS_INLINE iterator erase(const_iterator it) noexcept {
+    HRD_ALWAYS_INLINE iterator erase(const_iterator it) noexcept
+    {
         iterator& ret = (iterator&)it;
+
+        auto ee = reinterpret_cast<storage_type*>(_elements);
+        auto e_next = ee + ((it._ptr + 1 - ee) & _capacity);
+
         if (HRD_LIKELY(!!it._ptr)) //valid
         {
-            deleteElement(it._ptr);
+            it._ptr->data.~value_type();
+            _size--;
+
+            //set DELETED_MARK only if next element not 0
+            auto next_mark = e_next->mark;
+            if (HRD_LIKELY(!next_mark))
+                it._ptr->mark = 0;
+            else {
+                it._ptr->mark = DELETED_MARK;
+                _erased++;
+            }
 
             if (HRD_UNLIKELY(ret._cnt)) {
                 for (--ret._cnt;;) {
@@ -530,13 +545,39 @@ public:
     * \params k - Key of the element to be erased
     * \return 1 - if element erased and zero otherwise
     */
-    HRD_ALWAYS_INLINE size_type erase(const key_type& k) noexcept {
-        storage_type* ptr = find_(k);
-        if (HRD_LIKELY(!!ptr)) {
-            deleteElement(ptr);
-            return 1;
+    HRD_ALWAYS_INLINE size_type erase(const key_type& k) noexcept
+    {
+        auto ee = (storage_type*)_elements;
+        const uint32_t mark = make_mark(hash_pred::operator()(k));
+
+        for (size_t i = mark;;)
+        {
+            i &= _capacity;
+            storage_type& r = ee[i++];
+            auto h = r.mark;
+            if (HRD_LIKELY(h == mark))
+            {
+                if (HRD_LIKELY(hash_pred::operator()(get_key(r.data), k))) //identical found
+                {
+                    r.data.~value_type();
+                    _size--;
+
+                    h = ee[i & _capacity].mark;
+
+                    //set DELETED_MARK only if next element not 0
+                    if (HRD_LIKELY(!h))
+                        r.mark = 0;
+                    else {
+                        r.mark = DELETED_MARK;
+                        _erased++;
+                    }
+
+                    return 1;
+                }
+            }
+            else if (!h)
+                return 0;
         }
-        return 0;
     }
 
     HRD_ALWAYS_INLINE iterator begin() noexcept {
@@ -620,23 +661,7 @@ protected:
         if (HRD_UNLIKELY(!_elements))
             throw_bad_alloc();
     }
-
-    HRD_ALWAYS_INLINE void deleteElement(storage_type* ptr) noexcept
-    {
-        ptr->data.~value_type();
-        _size--;
-
-        //set DELETED_MARK only if next element not 0
-        auto ee = reinterpret_cast<storage_type*>(_elements);
-        auto next_mark = ee[(ptr + 1 - ee) & _capacity].mark;
-        if (HRD_LIKELY(!next_mark))
-            ptr->mark = 0;
-        else {
-            ptr->mark = DELETED_MARK;
-            _erased++;
-        }
-    }
-
+    
     HRD_ALWAYS_INLINE void dtor(std::true_type) noexcept
     {
         if (HRD_LIKELY(_capacity))

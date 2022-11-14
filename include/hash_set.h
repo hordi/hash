@@ -472,7 +472,7 @@ protected:
 #endif
 
     template<typename V, class this_type>
-    /*HRD_ALWAYS_INLINE */void ctor_insert_(V&& val, this_type& ref, std::true_type /*resized*/)
+    HRD_ALWAYS_INLINE void ctor_insert_(V&& val, this_type& ref, std::true_type /*resized*/)
     {
         const uint32_t mark = make_mark(ref(this_type::key_getter::get_key(val)));
         for (size_t i = mark;;)
@@ -564,23 +564,6 @@ protected:
         _erased = 0;
         if (HRD_UNLIKELY(!_elements))
             throw_bad_alloc();
-    }
-
-    template<typename storage_type, typename data_type>
-    HRD_ALWAYS_INLINE void deleteElement(storage_type* ptr) noexcept
-    {
-        ptr->data.~data_type();
-        _size--;
-
-        //set DELETED_MARK only if next element not 0
-        auto ee = reinterpret_cast<storage_type*>(_elements);
-        auto next_mark = ee[(ptr + 1 - ee) & _capacity].mark;
-        if (HRD_LIKELY(!next_mark))
-            ptr->mark = 0;
-        else {
-            ptr->mark = DELETED_MARK;
-            _erased++;
-        }
     }
 
     template<class this_type>
@@ -709,17 +692,17 @@ protected:
         {
             typename this_type::value_type data_type;
 
-			it._ptr->data.~data_type();
-			_size--;
+            it._ptr->data.~data_type();
+            _size--;
 
-			//set DELETED_MARK only if next element not 0
-			auto next_mark = e_next->mark;
-			if (HRD_LIKELY(!next_mark))
+            //set DELETED_MARK only if next element not 0
+            auto next_mark = e_next->mark;
+            if (HRD_LIKELY(!next_mark))
                 it._ptr->mark = 0;
-			else {
+            else {
                 it._ptr->mark = DELETED_MARK;
-				_erased++;
-			}
+                _erased++;
+            }
 
             if (HRD_UNLIKELY(ret._cnt)) {
                 for (--ret._cnt;;) {
@@ -736,37 +719,37 @@ protected:
     HRD_ALWAYS_INLINE size_type erase_(const typename this_type::key_type& k, this_type& ref) noexcept
     {
         auto ee = reinterpret_cast<typename this_type::storage_type*>(_elements);
-		const uint32_t mark = make_mark(ref(k));
-		for (size_t i = mark;;)
-		{
-			i &= _capacity;
-			auto& r = ee[i++];
-			auto h = r.mark;
-			if (HRD_LIKELY(h == mark))
-			{
-                if (HRD_LIKELY(ref(this_type::key_getter::get_key(r.data), k))) { //identical found
-                    
-					typename this_type::value_type data_type;
+        const uint32_t mark = make_mark(ref(k));
+        for (size_t i = mark;;)
+        {
+            i &= _capacity;
+            auto& r = ee[i++];
+            auto h = r.mark;
+            if (HRD_LIKELY(h == mark))
+            {
+                if (HRD_LIKELY(ref(this_type::key_getter::get_key(r.data), k))) //identical found
+                {
+                    typename this_type::value_type data_type;
 
-					r.data.~data_type();
-					_size--;
+                    r.data.~data_type();
+                    _size--;
 
-					h = ee[i & _capacity].mark;
+                    h = ee[i & _capacity].mark;
 
-					//set DELETED_MARK only if next element not 0
-					if (HRD_LIKELY(!h))
-						r.mark = 0;
-					else {
-						r.mark = DELETED_MARK;
-						_erased++;
-					}
+                    //set DELETED_MARK only if next element not 0
+                    if (HRD_LIKELY(!h))
+                        r.mark = 0;
+                    else {
+                        r.mark = DELETED_MARK;
+                        _erased++;
+                    }
                     
                     return 1;
                 }
-			}
-			else if (!h)
-				return 0;
-		}
+            }
+            else if (!h)
+                return 0;
+        }
     }
 
     template <class this_type>
@@ -1020,13 +1003,13 @@ public:
         return const_iterator();
     }
 
-    HRD_ALWAYS_INLINE void reserve(size_type hint) {
+    void reserve(size_type hint) {
         hint *= 2;
         if (HRD_LIKELY(hint > _capacity))
             resize_pow2<this_type>(roundup(hint));
     }
 
-    HRD_ALWAYS_INLINE void clear() noexcept {
+    void clear() noexcept {
         hash_base::clear<this_type>(IS_TRIVIALLY_DESTRUCTIBLE());
     }
 
@@ -1079,7 +1062,7 @@ public:
     * \params it - Iterator pointing to a single element to be removed
     * \return an iterator pointing to the position immediately following of the element erased
     */
-    inline iterator erase(const_iterator it) noexcept {
+    HRD_ALWAYS_INLINE iterator erase(const_iterator it) noexcept {
         return erase_<this_type>(it);
     }
 
@@ -1087,7 +1070,7 @@ public:
     * \params k - Key of the element to be erased
     * \return 1 - if element erased and zero otherwise
     */
-    inline size_type erase(const key_type& k) noexcept {
+    HRD_ALWAYS_INLINE size_type erase(const key_type& k) noexcept {
         return erase_(k, *this);
     }
 
@@ -1222,7 +1205,7 @@ public:
         return const_iterator();
     }
 
-    HRD_ALWAYS_INLINE void reserve(size_type hint) {
+    void reserve(size_type hint) {
         hint *= 2;
         if (HRD_LIKELY(hint > _capacity))
             resize_pow2<this_type>(roundup(hint));
@@ -1294,7 +1277,7 @@ public:
     * \params it - Iterator pointing to a single element to be removed
     * \return return an iterator pointing to the position immediately following of the element erased
     */
-    inline iterator erase(const_iterator it) noexcept {
+    HRD_ALWAYS_INLINE iterator erase(const_iterator it) noexcept {
         return erase_<this_type>(it);
     }
 
@@ -1302,7 +1285,7 @@ public:
     * \params k - Key of the element to be erased
     * \return 1 - if element erased and zero otherwise
     */
-    inline size_type erase(const key_type& k) noexcept {
+    HRD_ALWAYS_INLINE size_type erase(const key_type& k) noexcept {
         return erase_(k, *this);
     }
 
